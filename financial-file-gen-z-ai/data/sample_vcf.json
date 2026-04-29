@@ -1,0 +1,4 @@
+[
+    {"card_number": "4111111111111111", "amount": 150.00, "name": "ALICE WONDER", "merchant_code": "HOTEL"},
+    {"card_number": "4222222222222222", "amount": 45.50, "name": "CHARLIE BROWN", "merchant_code": "RESTAURANT"}
+]

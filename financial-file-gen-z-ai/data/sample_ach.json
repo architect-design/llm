@@ -1,0 +1,5 @@
+[
+    {"routing": "021000021", "account": "12345678", "amount": 2500.00, "name": "JOHN DOE", "credit": true},
+    {"routing": "026009593", "account": "87654321", "amount": 1250.50, "name": "JANE SMITH", "credit": true},
+    {"routing": "021000018", "account": "11223344", "amount": 500.00, "name": "BOB BUILDER", "credit": false}
+]

@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSLM — ACH & VISA VCF Intelligence Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0d1520;
+    --surface2: #111e2e;
+    --surface3: #162538;
+    --border: #1e3048;
+    --border2: #2a4060;
+    --accent: #00c8ff;
+    --accent2: #0086ff;
+    --accent3: #00ffaa;
+    --warn: #ffaa00;
+    --error: #ff4466;
+    --success: #00ffaa;
+    --text: #d0e4f0;
+    --text2: #7a9ab5;
+    --text3: #4a6a85;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-orb {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,134,255,0.06) 0%, transparent 70%);
+    top: -200px;
+    right: -100px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-orb2 {
+    position: fixed;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(0,255,170,0.04) 0%, transparent 70%);
+    bottom: -100px;
+    left: -100px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── Header ─── */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 0 40px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,10,15,0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .header-badges {
+    display: flex;
+    gap: 8px;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    letter-spacing: 1px;
+  }
+
+  .badge.active { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── Main Layout ─── */
+  .main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    height: calc(100vh - 64px);
+  }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    background: rgba(13,21,32,0.5);
+  }
+
+  .sidebar-section {
+    margin-bottom: 8px;
+    padding: 0 16px;
+  }
+
+  .sidebar-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    border: 1px solid transparent;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active {
+    background: rgba(0,200,255,0.08);
+    border-color: rgba(0,200,255,0.2);
+    color: var(--accent);
+  }
+
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 16px;
+  }
+
+  .model-status {
+    margin: 0 16px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 16px;
+  }
+
+  .model-status-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .model-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+
+  .model-name { color: var(--text2); font-family: var(--mono); }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text3);
+  }
+
+  .dot.ready { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot.absent { background: var(--error); }
+
+  /* ─── Content ─── */
+  .content {
+    overflow-y: auto;
+    padding: 32px 40px;
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .panel-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .panel-subtitle {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 28px;
+    font-family: var(--mono);
+  }
+
+  /* ─── Cards ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 16px;
+    font-family: var(--mono);
+  }
+
+  /* ─── Type Selector ─── */
+  .type-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .type-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+
+  .type-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .type-btn.selected {
+    background: rgba(0,200,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ─── Form Controls ─── */
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .form-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+
+  .form-input, .form-select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+
+  .form-input:focus, .form-select:focus {
+    border-color: var(--accent);
+  }
+
+  /* ─── Buttons ─── */
+  .btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #000;
+  }
+
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-success {
+    background: linear-gradient(135deg, #007755, var(--accent3));
+    color: #000;
+  }
+
+  .btn-danger {
+    background: linear-gradient(135deg, #880022, var(--error));
+    color: #fff;
+  }
+
+  .btn-sm { padding: 6px 14px; font-size: 11px; }
+
+  /* ─── File Upload ─── */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,200,255,0.04);
+  }
+
+  .upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+
+  .upload-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .upload-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* ─── Code Editor ─── */
+  .code-area {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    background: #020810;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    color: #8fc4e0;
+    width: 100%;
+    resize: vertical;
+    outline: none;
+    min-height: 200px;
+  }
+
+  .code-preview {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    background: #020810;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    color: #8fc4e0;
+    white-space: pre;
+    overflow: auto;
+    max-height: 400px;
+  }
+
+  /* ─── Validation Results ─── */
+  .result-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .result-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .result-stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    font-family: var(--mono);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .result-stat-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+
+  .stat-valid { color: var(--success); }
+  .stat-error { color: var(--error); }
+  .stat-warn { color: var(--warn); }
+  .stat-info { color: var(--accent); }
+
+  .result-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .result-badge.valid {
+    background: rgba(0,255,170,0.1);
+    border: 1px solid rgba(0,255,170,0.3);
+    color: var(--success);
+  }
+
+  .result-badge.invalid {
+    background: rgba(255,68,102,0.1);
+    border: 1px solid rgba(255,68,102,0.3);
+    color: var(--error);
+  }
+
+  /* ─── Validation Items ─── */
+  .validation-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .validation-item {
+    display: grid;
+    grid-template-columns: 80px 120px 60px 1fr;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    align-items: start;
+    font-size: 12px;
+  }
+
+  .validation-item.ERROR { border-left-color: var(--error); }
+  .validation-item.WARNING { border-left-color: var(--warn); }
+  .validation-item.INFO { border-left-color: var(--accent); }
+
+  .vi-severity {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-align: center;
+  }
+
+  .vi-severity.ERROR { background: rgba(255,68,102,0.15); color: var(--error); }
+  .vi-severity.WARNING { background: rgba(255,170,0,0.15); color: var(--warn); }
+  .vi-severity.INFO { background: rgba(0,200,255,0.15); color: var(--accent); }
+
+  .vi-field { font-family: var(--mono); color: var(--accent2); }
+  .vi-line { font-family: var(--mono); color: var(--text3); }
+  .vi-msg { color: var(--text); line-height: 1.4; }
+
+  /* ─── Training ─── */
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 100px;
+    height: 8px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+
+  .progress-bar {
+    height: 100%;
+    border-radius: 100px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width 0.5s ease;
+    box-shadow: 0 0 10px rgba(0,200,255,0.5);
+  }
+
+  .training-log {
+    background: #020810;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent3);
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+
+  /* ─── Stats Panel ─── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .stat-card-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .stat-card-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: var(--mono);
+  }
+
+  /* ─── Alerts ─── */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    font-family: var(--mono);
+    border-left: 3px solid;
+  }
+
+  .alert-info { background: rgba(0,200,255,0.07); border-color: var(--accent); color: var(--accent); }
+  .alert-success { background: rgba(0,255,170,0.07); border-color: var(--success); color: var(--success); }
+  .alert-error { background: rgba(255,68,102,0.07); border-color: var(--error); color: var(--error); }
+  .alert-warn { background: rgba(255,170,0,0.07); border-color: var(--warn); color: var(--warn); }
+
+  /* ─── Toggle Switch ─── */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    cursor: pointer;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 100px;
+    transition: 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--text3);
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: rgba(0,200,255,0.2); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+
+  .toggle-label { font-size: 12px; color: var(--text2); }
+
+  /* ─── Toolbar ─── */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* ─── Spinner ─── */
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading { opacity: 0.6; pointer-events: none; }
+
+  /* ─── Spec Reference ─── */
+  .spec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .spec-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--surface3);
+    color: var(--text3);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .spec-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .spec-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .spec-code { color: var(--accent3); }
+  .spec-val { color: var(--accent); }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .spec-grid { grid-template-columns: 1fr; }
+    .result-summary { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="glow-orb"></div>
+<div class="glow-orb2"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <div>
+      <div class="logo-text">FinSLM</div>
+      <div class="logo-sub">Financial Language Model</div>
+    </div>
+  </div>
+  <div class="header-badges">
+    <div class="badge active">ACH NACHA</div>
+    <div class="badge active">VISA VCF</div>
+    <div class="badge" id="modelBadge">MODEL: LOADING</div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Operations</div>
+      <div class="nav-item active" onclick="showPanel('generate')">
+        <span class="nav-icon">⚡</span> Generate
+      </div>
+      <div class="nav-item" onclick="showPanel('validate')">
+        <span class="nav-icon">✓</span> Validate
+      </div>
+      <div class="nav-item" onclick="showPanel('train')">
+        <span class="nav-icon">🧠</span> Train Model
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Reference</div>
+      <div class="nav-item" onclick="showPanel('spec')">
+        <span class="nav-icon">📋</span> Specification
+      </div>
+    </div>
+
+    <div class="model-status" id="sidebarModelStatus">
+      <div class="model-status-title">Model Status</div>
+      <div class="model-row">
+        <span class="model-name">ACH Model</span>
+        <span class="dot absent" id="achDot"></span>
+      </div>
+      <div class="model-row">
+        <span class="model-name">VCF Model</span>
+        <span class="dot absent" id="vcfDot"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ─── GENERATE PANEL ─── -->
+    <div class="panel active" id="panel-generate">
+      <div class="panel-title">Generate File</div>
+      <div class="panel-subtitle">// Create synthetic ACH or VISA VCF files</div>
+
+      <div class="card">
+        <div class="card-title">File Type</div>
+        <div class="type-selector">
+          <button class="type-btn selected" id="genTypeACH" onclick="selectGenType('ACH')">
+            ACH NACHA
+          </button>
+          <button class="type-btn" id="genTypeVCF" onclick="selectGenType('VCF')">
+            VISA VCF
+          </button>
+        </div>
+
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="useModelToggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Use trained SLM (if available)</span>
+        </div>
+
+        <div id="achGenOptions">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Batches</label>
+              <input class="form-input" type="number" id="numBatches" value="2" min="1" max="10">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Entries / Batch</label>
+              <input class="form-input" type="number" id="entriesPerBatch" value="5" min="1" max="50">
+            </div>
+            <div class="form-group">
+              <label class="form-label">SEC Code</label>
+              <select class="form-select" id="secCode">
+                <option value="">Random</option>
+                <option value="PPD">PPD - Prearranged</option>
+                <option value="CCD">CCD - Corporate Credit</option>
+                <option value="CTX">CTX - Corporate Trade</option>
+                <option value="WEB">WEB - Internet</option>
+                <option value="TEL">TEL - Telephone</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="vcfGenOptions" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Transactions</label>
+              <input class="form-input" type="number" id="numTransactions" value="20" min="1" max="500">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Temperature (SLM)</label>
+              <input class="form-input" type="number" id="temperature" value="0.8" min="0.1" max="2.0" step="0.1">
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="generateBtn" onclick="generateFile()">
+          <span>⚡</span> Generate File
+        </button>
+      </div>
+
+      <div class="card" id="generatedCard" style="display:none">
+        <div class="card-title">Generated Output</div>
+        <div id="genMeta" style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap"></div>
+        <div class="code-preview" id="generatedContent"></div>
+        <div class="toolbar">
+          <button class="btn btn-secondary btn-sm" onclick="copyGenerated()">⎘ Copy</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadGenerated()">⬇ Download</button>
+          <button class="btn btn-secondary btn-sm" onclick="validateGenerated()">✓ Validate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── VALIDATE PANEL ─── -->
+    <div class="panel" id="panel-validate">
+      <div class="panel-title">Validate File</div>
+      <div class="panel-subtitle">// Validate against NACHA & VISA VCF specifications</div>
+
+      <div class="card">
+        <div class="card-title">File Type</div>
+        <div class="type-selector">
+          <button class="type-btn selected" id="valTypeACH" onclick="selectValType('ACH')">
+            ACH NACHA
+          </button>
+          <button class="type-btn" id="valTypeVCF" onclick="selectValType('VCF')">
+            VISA VCF
+          </button>
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".txt,.ach,.vcf,.dat,.csv"
+                 onchange="handleFileUpload(event)">
+          <div class="upload-icon">📂</div>
+          <div class="upload-text">Drop file here or click to browse</div>
+          <div class="upload-sub">Supports .txt, .ach, .vcf, .dat, .csv</div>
+        </div>
+
+        <div style="margin: 12px 0; text-align: center; color: var(--text3); font-size: 12px;">— or paste content —</div>
+
+        <textarea class="code-area" id="pasteContent"
+                  placeholder="Paste ACH or VCF file content here..."
+                  rows="8"></textarea>
+
+        <div class="toolbar" style="margin-top: 12px">
+          <button class="btn btn-primary" onclick="validateFile()">
+            <span>✓</span> Validate
+          </button>
+          <button class="btn btn-secondary" onclick="clearValidation()">✕ Clear</button>
+        </div>
+      </div>
+
+      <div id="validationResults" style="display:none">
+        <div id="validationBadge"></div>
+
+        <div class="result-summary">
+          <div class="result-stat">
+            <div class="result-stat-value stat-error" id="errorCount">0</div>
+            <div class="result-stat-label">Errors</div>
+          </div>
+          <div class="result-stat">
+            <div class="result-stat-value stat-warn" id="warnCount">0</div>
+            <div class="result-stat-label">Warnings</div>
+          </div>
+          <div class="result-stat">
+            <div class="result-stat-value stat-info" id="infoCount">0</div>
+            <div class="result-stat-label">Info</div>
+          </div>
+          <div class="result-stat">
+            <div class="result-stat-value" id="lineCount" style="color:var(--text)">—</div>
+            <div class="result-stat-label">Records</div>
+          </div>
+        </div>
+
+        <div id="statsCards" class="card" style="display:none">
+          <div class="card-title">File Statistics</div>
+          <div class="stats-grid" id="statsGrid"></div>
+        </div>
+
+        <div class="card" id="resultsCard">
+          <div class="card-title">Validation Details</div>
+          <div class="validation-list" id="validationList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TRAIN PANEL ─── -->
+    <div class="panel" id="panel-train">
+      <div class="panel-title">Train Model</div>
+      <div class="panel-subtitle">// Fine-tune the SLM on synthetic ACH/VCF data</div>
+
+      <div class="alert alert-info">
+        The SLM is a character-level GPT-style transformer trained on synthetic financial files.
+        Training generates realistic ACH/VCF files and teaches the model their structure.
+        Nano model trains in ~2–5 min on CPU.
+      </div>
+
+      <div class="card">
+        <div class="card-title">Training Configuration</div>
+
+        <div class="type-selector">
+          <button class="type-btn selected" id="trainTypeACH" onclick="selectTrainType('ACH')">
+            Train ACH Model
+          </button>
+          <button class="type-btn" id="trainTypeVCF" onclick="selectTrainType('VCF')">
+            Train VCF Model
+          </button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Model Size</label>
+            <select class="form-select" id="modelConfig">
+              <option value="nano">Nano (~1M params, fast)</option>
+              <option value="small" selected>Small (~4M params)</option>
+              <option value="medium">Medium (~10M params)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Training Files</label>
+            <input class="form-input" type="number" id="nFiles" value="200" min="50" max="2000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Epochs</label>
+            <input class="form-input" type="number" id="maxEpochs" value="5" min="1" max="50">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Batch Size</label>
+            <input class="form-input" type="number" id="batchSize" value="4" min="1" max="32">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Learning Rate</label>
+            <input class="form-input" type="text" id="learningRate" value="0.0003">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="trainBtn" onclick="startTraining()">
+          <span>🧠</span> Start Training
+        </button>
+      </div>
+
+      <div class="card" id="trainingProgress" style="display:none">
+        <div class="card-title">Training Progress</div>
+        <div id="trainMessage" style="font-family:var(--mono); font-size:12px; color:var(--text2); margin-bottom:8px">
+          Initializing...
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar" style="width:0%"></div>
+        </div>
+        <div class="training-log" id="trainingLog"></div>
+        <div style="margin-top:12px; display:flex; gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="stopPolling()">⏹ Stop Polling</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SPEC PANEL ─── -->
+    <div class="panel" id="panel-spec">
+      <div class="panel-title">Specification Reference</div>
+      <div class="panel-subtitle">// NACHA ACH & VISA VCF format documentation</div>
+
+      <div class="spec-grid">
+        <div class="card">
+          <div class="card-title">ACH NACHA — Record Types</div>
+          <table class="spec-table">
+            <tr><th>Type</th><th>Name</th><th>Description</th></tr>
+            <tr><td class="spec-code">1</td><td class="spec-val">File Header</td><td>One per file. Routing, dates, IDs</td></tr>
+            <tr><td class="spec-code">5</td><td class="spec-val">Batch Header</td><td>Per batch. Company info, SEC code</td></tr>
+            <tr><td class="spec-code">6</td><td class="spec-val">Entry Detail</td><td>One per transaction</td></tr>
+            <tr><td class="spec-code">7</td><td class="spec-val">Addenda</td><td>Optional extra info per entry</td></tr>
+            <tr><td class="spec-code">8</td><td class="spec-val">Batch Control</td><td>Totals for batch</td></tr>
+            <tr><td class="spec-code">9</td><td class="spec-val">File Control</td><td>Grand totals for file</td></tr>
+          </table>
+          <div style="margin-top:16px">
+          <div class="card-title">SEC Codes</div>
+          <table class="spec-table">
+            <tr><th>Code</th><th>Name</th></tr>
+            <tr><td class="spec-code">PPD</td><td>Prearranged Payment & Deposit</td></tr>
+            <tr><td class="spec-code">CCD</td><td>Corporate Credit or Debit</td></tr>
+            <tr><td class="spec-code">CTX</td><td>Corporate Trade Exchange</td></tr>
+            <tr><td class="spec-code">WEB</td><td>Internet-Initiated Entry</td></tr>
+            <tr><td class="spec-code">TEL</td><td>Telephone-Initiated Entry</td></tr>
+            <tr><td class="spec-code">IAT</td><td>International ACH Transaction</td></tr>
+          </table>
+          </div>
+          <div style="margin-top:16px">
+          <div class="card-title">Transaction Codes</div>
+          <table class="spec-table">
+            <tr><th>Code</th><th>Meaning</th></tr>
+            <tr><td class="spec-code">22</td><td>Checking Account Credit (Live)</td></tr>
+            <tr><td class="spec-code">27</td><td>Checking Account Debit (Live)</td></tr>
+            <tr><td class="spec-code">32</td><td>Savings Account Credit (Live)</td></tr>
+            <tr><td class="spec-code">37</td><td>Savings Account Debit (Live)</td></tr>
+            <tr><td class="spec-code">23</td><td>Checking Account Credit (Prenote)</td></tr>
+            <tr><td class="spec-code">28</td><td>Checking Account Debit (Prenote)</td></tr>
+          </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">VISA VCF — Transaction Codes</div>
+          <table class="spec-table">
+            <tr><th>Code</th><th>Type</th><th>Description</th></tr>
+            <tr><td class="spec-code">05</td><td class="spec-val">Authorization</td><td>Auth request</td></tr>
+            <tr><td class="spec-code">06</td><td class="spec-val">Financial</td><td>Purchase transaction</td></tr>
+            <tr><td class="spec-code">10</td><td class="spec-val">Reversal</td><td>Full reversal</td></tr>
+            <tr><td class="spec-code">12</td><td class="spec-val">Partial Rev.</td><td>Partial reversal</td></tr>
+            <tr><td class="spec-code">15</td><td class="spec-val">Rev. Advice</td><td>Reversal advice</td></tr>
+            <tr><td class="spec-code">25</td><td class="spec-val">Chargeback</td><td>First chargeback</td></tr>
+            <tr><td class="spec-code">26</td><td class="spec-val">2nd CB</td><td>Second chargeback</td></tr>
+          </table>
+          <div style="margin-top:16px">
+          <div class="card-title">VCF Field Layout (Pipe-Delimited)</div>
+          <table class="spec-table">
+            <tr><th>Pos</th><th>Field</th><th>Format</th></tr>
+            <tr><td class="spec-code">0</td><td>Transaction Code</td><td class="spec-val">2N</td></tr>
+            <tr><td class="spec-code">1</td><td>PAN (Card Number)</td><td class="spec-val">13-19N, Luhn</td></tr>
+            <tr><td class="spec-code">2</td><td>Processing Code</td><td class="spec-val">6N</td></tr>
+            <tr><td class="spec-code">3</td><td>Amount</td><td class="spec-val">N.NN</td></tr>
+            <tr><td class="spec-code">4</td><td>Currency</td><td class="spec-val">ISO 4217 3N</td></tr>
+            <tr><td class="spec-code">5</td><td>Date/Time</td><td class="spec-val">YYYYMMDDHHmmSS</td></tr>
+            <tr><td class="spec-code">6</td><td>MCC</td><td class="spec-val">4N</td></tr>
+            <tr><td class="spec-code">7</td><td>POS Entry Mode</td><td class="spec-val">2N</td></tr>
+            <tr><td class="spec-code">8</td><td>Response Code</td><td class="spec-val">2AN</td></tr>
+            <tr><td class="spec-code">9</td><td>Auth Code</td><td class="spec-val">6AN</td></tr>
+            <tr><td class="spec-code">10</td><td>Merchant ID</td><td class="spec-val">15AN</td></tr>
+            <tr><td class="spec-code">14</td><td>ARN</td><td class="spec-val">23N</td></tr>
+          </table>
+          </div>
+          <div style="margin-top:16px">
+          <div class="card-title">Response Codes (Key)</div>
+          <table class="spec-table">
+            <tr><th>Code</th><th>Meaning</th></tr>
+            <tr><td class="spec-code">00</td><td>Approved</td></tr>
+            <tr><td class="spec-code">05</td><td>Do Not Honor</td></tr>
+            <tr><td class="spec-code">51</td><td>Insufficient Funds</td></tr>
+            <tr><td class="spec-code">54</td><td>Expired Card</td></tr>
+            <tr><td class="spec-code">14</td><td>Invalid Card Number</td></tr>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end content -->
+</div><!-- end main -->
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+let currentGenType = 'ACH';
+let currentValType = 'ACH';
+let currentTrainType = 'ACH';
+let generatedContent = '';
+let pollInterval = null;
+let logLines = [];
+
+// ─── Navigation ─────────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─── Type Selectors ─────────────────────────────────────────────────────────
+function selectGenType(type) {
+  currentGenType = type;
+  document.getElementById('genTypeACH').classList.toggle('selected', type === 'ACH');
+  document.getElementById('genTypeVCF').classList.toggle('selected', type === 'VCF');
+  document.getElementById('achGenOptions').style.display = type === 'ACH' ? '' : 'none';
+  document.getElementById('vcfGenOptions').style.display = type === 'VCF' ? '' : 'none';
+}
+
+function selectValType(type) {
+  currentValType = type;
+  document.getElementById('valTypeACH').classList.toggle('selected', type === 'ACH');
+  document.getElementById('valTypeVCF').classList.toggle('selected', type === 'VCF');
+}
+
+function selectTrainType(type) {
+  currentTrainType = type;
+  document.getElementById('trainTypeACH').classList.toggle('selected', type === 'ACH');
+  document.getElementById('trainTypeVCF').classList.toggle('selected', type === 'VCF');
+}
+
+// ─── Generate ────────────────────────────────────────────────────────────────
+async function generateFile() {
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+
+  const useModel = document.getElementById('useModelToggle').checked;
+  const payload = {
+    file_type: currentGenType,
+    use_model: useModel,
+  };
+
+  if (currentGenType === 'ACH') {
+    payload.num_batches = parseInt(document.getElementById('numBatches').value);
+    payload.entries_per_batch = parseInt(document.getElementById('entriesPerBatch').value);
+    const sec = document.getElementById('secCode').value;
+    if (sec) payload.sec_code = sec;
+  } else {
+    payload.num_transactions = parseInt(document.getElementById('numTransactions').value);
+    payload.temperature = parseFloat(document.getElementById('temperature').value);
+  }
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.error || 'Generation failed', 'error');
+      return;
+    }
+
+    generatedContent = data.content;
+    document.getElementById('generatedContent').textContent = data.content;
+    document.getElementById('generatedCard').style.display = '';
+
+    const meta = document.getElementById('genMeta');
+    meta.innerHTML = `
+      <span class="badge active">${data.file_type}</span>
+      <span class="badge">${data.method}</span>
+      <span class="badge">${data.line_count} records</span>
+      <span class="badge">${data.char_count.toLocaleString()} chars</span>
+    `;
+
+  } catch (e) {
+    showAlert('Network error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> Generate File';
+  }
+}
+
+function copyGenerated() {
+  navigator.clipboard.writeText(generatedContent)
+    .then(() => showAlert('Copied to clipboard!', 'success'));
+}
+
+async function downloadGenerated() {
+  const res = await fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: generatedContent,
+      file_type: currentGenType,
+      filename: `${currentGenType.toLowerCase()}_${Date.now()}.txt`
+    })
+  });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${currentGenType.toLowerCase()}_generated.txt`;
+  a.click();
+}
+
+async function validateGenerated() {
+  showPanel('validate');
+  document.querySelectorAll('.nav-item')[1].classList.add('active');
+  document.querySelectorAll('.nav-item')[0].classList.remove('active');
+  selectValType(currentGenType);
+  document.getElementById('pasteContent').value = generatedContent;
+  await validateFile();
+}
+
+// ─── Validate ────────────────────────────────────────────────────────────────
+let uploadedFileContent = null;
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    uploadedFileContent = e.target.result;
+    document.getElementById('pasteContent').value = e.target.result.slice(0, 5000) +
+      (e.target.result.length > 5000 ? '\n... (truncated in preview)' : '');
+    document.getElementById('uploadZone').querySelector('.upload-text').textContent =
+      '✓ ' + file.name + ' loaded';
+  };
+  reader.readAsText(file);
+}
+
+// Drag and drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      uploadedFileContent = ev.target.result;
+      document.getElementById('pasteContent').value = ev.target.result;
+      zone.querySelector('.upload-text').textContent = '✓ ' + file.name + ' loaded';
+    };
+    reader.readAsText(file);
+  }
+});
+
+async function validateFile() {
+  const content = uploadedFileContent || document.getElementById('pasteContent').value.trim();
+  if (!content) {
+    showAlert('Please provide file content', 'warn');
+    return;
+  }
+
+  document.getElementById('validationResults').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/validate/text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, file_type: currentValType })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.error, 'error');
+      return;
+    }
+
+    renderValidationResults(data);
+
+  } catch (e) {
+    showAlert('Error: ' + e.message, 'error');
+  }
+}
+
+function renderValidationResults(data) {
+  document.getElementById('validationResults').style.display = '';
+  document.getElementById('errorCount').textContent = data.summary.errors;
+  document.getElementById('warnCount').textContent = data.summary.warnings;
+  document.getElementById('infoCount').textContent = data.summary.info;
+  document.getElementById('lineCount').textContent =
+    data.statistics?.total_records || data.statistics?.total_lines || '—';
+
+  const badge = document.getElementById('validationBadge');
+  badge.innerHTML = data.is_valid
+    ? `<div class="result-badge valid">✓ VALID ${currentValType} File</div>`
+    : `<div class="result-badge invalid">✕ INVALID ${currentValType} File — ${data.summary.errors} error(s)</div>`;
+
+  // Statistics
+  if (data.statistics && Object.keys(data.statistics).length > 0) {
+    document.getElementById('statsCards').style.display = '';
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML = Object.entries(data.statistics)
+      .filter(([k, v]) => v !== null && v !== undefined && !Array.isArray(v) && typeof v !== 'object')
+      .map(([k, v]) => `
+        <div class="stat-card">
+          <div class="stat-card-label">${k.replace(/_/g,' ')}</div>
+          <div class="stat-card-value">${v}</div>
+        </div>
+      `).join('');
+
+    // SEC codes or TC distribution
+    const sec = data.statistics.sec_codes || data.statistics.transaction_code_distribution;
+    if (sec) {
+      const vals = Array.isArray(sec) ? sec.join(', ') : JSON.stringify(sec);
+      grid.innerHTML += `
+        <div class="stat-card" style="grid-column:1/-1">
+          <div class="stat-card-label">${Array.isArray(sec) ? 'SEC Codes' : 'TC Distribution'}</div>
+          <div class="stat-card-value">${vals}</div>
+        </div>`;
+    }
+  }
+
+  // Results list
+  const all = [
+    ...data.errors.map(r => ({...r, severity: 'ERROR'})),
+    ...data.warnings.map(r => ({...r, severity: 'WARNING'})),
+    ...data.info.map(r => ({...r, severity: 'INFO'})),
+  ];
+
+  const list = document.getElementById('validationList');
+  if (all.length === 0) {
+    list.innerHTML = '<div class="alert alert-success">✓ No issues found. File is fully compliant.</div>';
+  } else {
+    list.innerHTML = all.map(r => `
+      <div class="validation-item ${r.severity}">
+        <div><span class="vi-severity ${r.severity}">${r.severity}</span></div>
+        <div class="vi-field">${r.field || '—'}</div>
+        <div class="vi-line">L${r.line || '?'}</div>
+        <div>
+          <div class="vi-msg">${r.message}</div>
+          ${r.value ? `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px">got: <span style="color:var(--error)">${escHtml(r.value)}</span>${r.expected ? ` → expected: <span style="color:var(--success)">${escHtml(r.expected)}</span>` : ''}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+function clearValidation() {
+  document.getElementById('pasteContent').value = '';
+  document.getElementById('validationResults').style.display = 'none';
+  uploadedFileContent = null;
+  document.getElementById('uploadZone').querySelector('.upload-text').textContent =
+    'Drop file here or click to browse';
+}
+
+// ─── Training ────────────────────────────────────────────────────────────────
+async function startTraining() {
+  const btn = document.getElementById('trainBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Starting...';
+
+  logLines = [];
+  document.getElementById('trainingLog').textContent = '';
+  document.getElementById('trainingProgress').style.display = '';
+  document.getElementById('progressBar').style.width = '0%';
+
+  const payload = {
+    file_type: currentTrainType,
+    model_config: document.getElementById('modelConfig').value,
+    n_files: parseInt(document.getElementById('nFiles').value),
+    max_epochs: parseInt(document.getElementById('maxEpochs').value),
+    batch_size: parseInt(document.getElementById('batchSize').value),
+    learning_rate: parseFloat(document.getElementById('learningRate').value),
+  };
+
+  try {
+    const res = await fetch('/api/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.error, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧠</span> Start Training';
+      return;
+    }
+
+    // Start polling
+    pollInterval = setInterval(pollTrainingStatus, 2000);
+
+  } catch (e) {
+    showAlert('Error: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<span>🧠</span> Start Training';
+  }
+}
+
+async function pollTrainingStatus() {
+  try {
+    const res = await fetch('/api/train/status');
+    const data = await res.json();
+
+    document.getElementById('trainMessage').textContent = data.message;
+    document.getElementById('progressBar').style.width = (data.progress || 0) + '%';
+
+    if (!logLines.includes(data.message) && data.message !== 'Idle') {
+      logLines.push(data.message);
+      const log = document.getElementById('trainingLog');
+      log.textContent = logLines.join('\n');
+      log.scrollTop = log.scrollHeight;
+    }
+
+    if (!data.running) {
+      stopPolling();
+      const btn = document.getElementById('trainBtn');
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧠</span> Start Training';
+
+      if (data.error) {
+        showAlert('Training failed: ' + data.error, 'error');
+      } else if (data.result) {
+        showAlert(`Training complete! Best val loss: ${data.result.best_val_loss?.toFixed(4)}`, 'success');
+        loadModelStatus();
+      }
+    }
+  } catch (e) {
+    // Silently ignore poll errors
+  }
+}
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+}
+
+// ─── Model Status ────────────────────────────────────────────────────────────
+async function loadModelStatus() {
+  try {
+    const res = await fetch('/api/models');
+    const data = await res.json();
+
+    const achReady = data.ACH?.available;
+    const vcfReady = data.VCF?.available;
+
+    document.getElementById('achDot').className = 'dot ' + (achReady ? 'ready' : 'absent');
+    document.getElementById('vcfDot').className = 'dot ' + (vcfReady ? 'ready' : 'absent');
+
+    const status = [];
+    if (achReady) status.push('ACH');
+    if (vcfReady) status.push('VCF');
+    document.getElementById('modelBadge').textContent =
+      status.length > 0 ? 'MODEL: ' + status.join('+') : 'MODEL: NONE';
+
+  } catch (e) {
+    document.getElementById('modelBadge').textContent = 'MODEL: OFFLINE';
+  }
+}
+
+// ─── Alerts ──────────────────────────────────────────────────────────────────
+function showAlert(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;top:80px;right:20px;z-index:999;max-width:400px;animation:fadeIn 0.3s';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadModelStatus();
+setInterval(loadModelStatus, 30000);
+</script>
+</body>
+</html>

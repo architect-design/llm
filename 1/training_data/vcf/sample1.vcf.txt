@@ -1,0 +1,14 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:John A. Doe
+N:Doe;John;A.;Mr.;PhD
+TITLE:Senior Engineer
+ORG:Acme Inc.
+TEL;TYPE=WORK,VOICE:+1-555-123-4567
+TEL;TYPE=CELL:+1-555-987-6543
+EMAIL:john.doe@acme.com
+ADR;TYPE=WORK:;;123 Main St;Springfield;IL;62701;USA
+BDAY:1985-04-12
+NOTE:Test contact for VCF generator
+REV:20240101T120000Z
+END:VCARD

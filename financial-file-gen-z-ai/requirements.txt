@@ -1,0 +1,8 @@
+torch
+pandas
+streamlit
+sqlalchemy
+pandas
+sqlalchemy
+python-dotenv
+numpy
