@@ -7,21 +7,31 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #050a0f;
-    --surface: #0d1520;
-    --surface2: #111e2e;
-    --surface3: #162538;
-    --border: #1e3048;
-    --border2: #2a4060;
-    --accent: #00c8ff;
-    --accent2: #0086ff;
-    --accent3: #00ffaa;
-    --warn: #ffaa00;
-    --error: #ff4466;
-    --success: #00ffaa;
-    --text: #d0e4f0;
-    --text2: #7a9ab5;
-    --text3: #4a6a85;
+    /* ── Wells Fargo brand palette ── */
+    --wf-red:      #D71E28;
+    --wf-red-dark: #A8161F;
+    --wf-red-pale: #FCEAEA;
+
+    /* ── Neutrals ── */
+    --bg:       #FFFFFF;
+    --surface:  #F7F7F7;
+    --surface2: #F0F0F0;
+    --surface3: #E8E8E8;
+    --border:   #D8D8D8;
+    --border2:  #C0C0C0;
+
+    /* ── Text ── */
+    --text:  #111111;
+    --text2: #444444;
+    --text3: #767676;
+
+    /* ── Semantic ── */
+    --success: #1A7340;
+    --warn:    #B45309;
+    --error:   #C0152A;
+    --info:    #1A5FA8;
+
+    /* ── Fonts ── */
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Syne', sans-serif;
   }
@@ -36,40 +46,20 @@
     overflow-x: hidden;
   }
 
-  /* Grid background */
+  /* Subtle dot-grid texture */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
-    background-image:
-      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-image: radial-gradient(circle, #D8D8D8 1px, transparent 1px);
+    background-size: 28px 28px;
     pointer-events: none;
     z-index: 0;
+    opacity: 0.45;
   }
 
-  .glow-orb {
-    position: fixed;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(0,134,255,0.06) 0%, transparent 70%);
-    top: -200px;
-    right: -100px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .glow-orb2 {
-    position: fixed;
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, rgba(0,255,170,0.04) 0%, transparent 70%);
-    bottom: -100px;
-    left: -100px;
-    pointer-events: none;
-    z-index: 0;
-  }
+  /* Remove dark orbs */
+  .glow-orb, .glow-orb2 { display: none; }
 
   /* ─── Header ─── */
   header {
@@ -80,9 +70,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    background: rgba(5,10,15,0.8);
-    backdrop-filter: blur(12px);
+    border-bottom: 3px solid var(--wf-red);
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-top: 4px solid var(--wf-red);
   }
 
   .logo {
@@ -94,21 +85,21 @@
   .logo-icon {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    background: var(--wf-red);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 18px;
+    color: #fff;
   }
 
   .logo-text {
     font-size: 20px;
     font-weight: 800;
     letter-spacing: -0.5px;
-    background: linear-gradient(135deg, var(--accent), var(--accent3));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--wf-red);
+    -webkit-text-fill-color: var(--wf-red);
   }
 
   .logo-sub {
@@ -131,11 +122,16 @@
     padding: 4px 10px;
     border-radius: 4px;
     border: 1px solid var(--border2);
-    color: var(--text2);
+    color: var(--text3);
     letter-spacing: 1px;
+    background: var(--surface);
   }
 
-  .badge.active { border-color: var(--accent); color: var(--accent); }
+  .badge.active {
+    border-color: var(--wf-red);
+    color: var(--wf-red);
+    background: var(--wf-red-pale);
+  }
 
   /* ─── Main Layout ─── */
   .main {
@@ -150,7 +146,7 @@
   .sidebar {
     border-right: 1px solid var(--border);
     padding: 24px 0;
-    background: rgba(13,21,32,0.5);
+    background: var(--surface);
   }
 
   .sidebar-section {
@@ -182,11 +178,16 @@
     border: 1px solid transparent;
   }
 
-  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
   .nav-item.active {
-    background: rgba(0,200,255,0.08);
-    border-color: rgba(0,200,255,0.2);
-    color: var(--accent);
+    background: var(--wf-red-pale);
+    border-color: rgba(215,30,40,0.25);
+    color: var(--wf-red);
+    border-left: 3px solid var(--wf-red);
   }
 
   .nav-icon { font-size: 16px; width: 20px; text-align: center; }
@@ -200,8 +201,9 @@
   .model-status {
     margin: 0 16px;
     padding: 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--wf-red-pale);
+    border: 1px solid rgba(215,30,40,0.2);
+    border-top: 2px solid var(--wf-red);
     border-radius: 8px;
     margin-top: 16px;
   }
@@ -229,16 +231,17 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--text3);
+    background: var(--border2);
   }
 
-  .dot.ready { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot.ready { background: var(--success); box-shadow: 0 0 5px rgba(26,115,64,0.4); }
   .dot.absent { background: var(--error); }
 
   /* ─── Content ─── */
   .content {
     overflow-y: auto;
     padding: 32px 40px;
+    background: #FFFFFF;
   }
 
   .panel { display: none; }
@@ -249,22 +252,33 @@
     font-weight: 800;
     letter-spacing: -0.5px;
     margin-bottom: 4px;
+    color: var(--text);
+    padding-bottom: 10px;
+    border-bottom: 3px solid var(--wf-red);
+    display: inline-block;
   }
 
   .panel-subtitle {
     font-size: 13px;
-    color: var(--text2);
+    color: var(--text3);
     margin-bottom: 28px;
     font-family: var(--mono);
   }
 
   /* ─── Cards ─── */
   .card {
-    background: var(--surface);
+    background: #FFFFFF;
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 24px;
     margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+
+  .card:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    border-color: #C8C8C8;
   }
 
   .card-title {
@@ -272,7 +286,7 @@
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
-    color: var(--text2);
+    color: var(--text3);
     margin-bottom: 16px;
     font-family: var(--mono);
   }
@@ -288,8 +302,8 @@
     flex: 1;
     padding: 12px;
     border-radius: 8px;
-    border: 1px solid var(--border2);
-    background: transparent;
+    border: 1.5px solid var(--border2);
+    background: #FFFFFF;
     color: var(--text2);
     font-family: var(--sans);
     font-size: 13px;
@@ -299,11 +313,16 @@
     letter-spacing: 1px;
   }
 
-  .type-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .type-btn:hover {
+    border-color: var(--wf-red);
+    color: var(--wf-red);
+    background: var(--wf-red-pale);
+  }
+
   .type-btn.selected {
-    background: rgba(0,200,255,0.1);
-    border-color: var(--accent);
-    color: var(--accent);
+    background: var(--wf-red);
+    border-color: var(--wf-red);
+    color: #FFFFFF;
   }
 
   /* ─── Form Controls ─── */
@@ -325,8 +344,8 @@
   }
 
   .form-input, .form-select {
-    background: var(--surface2);
-    border: 1px solid var(--border2);
+    background: var(--surface);
+    border: 1.5px solid var(--border2);
     color: var(--text);
     padding: 9px 12px;
     border-radius: 6px;
@@ -337,7 +356,8 @@
   }
 
   .form-input:focus, .form-select:focus {
-    border-color: var(--accent);
+    border-color: var(--wf-red);
+    box-shadow: 0 0 0 3px rgba(215,30,40,0.1);
   }
 
   /* ─── Buttons ─── */
@@ -356,30 +376,49 @@
     gap: 8px;
   }
 
+  /* Primary = Wells Fargo Red */
   .btn-primary {
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
-    color: #000;
+    background: var(--wf-red);
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(215,30,40,0.28);
   }
 
-  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-primary:hover {
+    background: var(--wf-red-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(215,30,40,0.32);
+  }
 
+  .btn-primary:disabled {
+    background: #E89099;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Secondary = outlined red */
   .btn-secondary {
-    background: var(--surface3);
-    border: 1px solid var(--border2);
-    color: var(--text);
+    background: #FFFFFF;
+    border: 1.5px solid var(--border2);
+    color: var(--text2);
   }
 
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-secondary:hover {
+    border-color: var(--wf-red);
+    color: var(--wf-red);
+    background: var(--wf-red-pale);
+  }
 
   .btn-success {
-    background: linear-gradient(135deg, #007755, var(--accent3));
-    color: #000;
+    background: #1A7340;
+    color: #FFFFFF;
   }
 
+  .btn-success:hover { background: #145c33; }
+
   .btn-danger {
-    background: linear-gradient(135deg, #880022, var(--error));
-    color: #fff;
+    background: var(--wf-red);
+    color: #FFFFFF;
   }
 
   .btn-sm { padding: 6px 14px; font-size: 11px; }
@@ -393,11 +432,12 @@
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
+    background: var(--surface);
   }
 
   .upload-zone:hover, .upload-zone.drag-over {
-    border-color: var(--accent);
-    background: rgba(0,200,255,0.04);
+    border-color: var(--wf-red);
+    background: var(--wf-red-pale);
   }
 
   .upload-zone input[type="file"] {
@@ -427,11 +467,11 @@
     font-family: var(--mono);
     font-size: 11.5px;
     line-height: 1.6;
-    background: #020810;
+    background: #1C1C1C;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
-    color: #8fc4e0;
+    color: #D4E6C8;
     width: 100%;
     resize: vertical;
     outline: none;
@@ -442,11 +482,11 @@
     font-family: var(--mono);
     font-size: 11px;
     line-height: 1.6;
-    background: #020810;
+    background: #1C1C1C;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
-    color: #8fc4e0;
+    color: #D4E6C8;
     white-space: pre;
     overflow: auto;
     max-height: 400px;
@@ -461,12 +501,19 @@
   }
 
   .result-stat {
-    background: var(--surface2);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
     text-align: center;
+    border-top: 3px solid var(--border);
+    transition: border-top-color 0.15s;
   }
+
+  .result-stat:nth-child(1) { border-top-color: var(--error); }
+  .result-stat:nth-child(2) { border-top-color: var(--warn); }
+  .result-stat:nth-child(3) { border-top-color: var(--info); }
+  .result-stat:nth-child(4) { border-top-color: var(--text3); }
 
   .result-stat-value {
     font-size: 28px;
@@ -486,8 +533,8 @@
 
   .stat-valid { color: var(--success); }
   .stat-error { color: var(--error); }
-  .stat-warn { color: var(--warn); }
-  .stat-info { color: var(--accent); }
+  .stat-warn  { color: var(--warn); }
+  .stat-info  { color: var(--info); }
 
   .result-badge {
     display: inline-flex;
@@ -501,14 +548,14 @@
   }
 
   .result-badge.valid {
-    background: rgba(0,255,170,0.1);
-    border: 1px solid rgba(0,255,170,0.3);
+    background: #EAF5EF;
+    border: 1px solid #A3D4B5;
     color: var(--success);
   }
 
   .result-badge.invalid {
-    background: rgba(255,68,102,0.1);
-    border: 1px solid rgba(255,68,102,0.3);
+    background: var(--wf-red-pale);
+    border: 1px solid rgba(215,30,40,0.3);
     color: var(--error);
   }
 
@@ -520,16 +567,16 @@
     grid-template-columns: 80px 120px 60px 1fr;
     gap: 12px;
     padding: 12px 16px;
-    background: var(--surface2);
+    background: var(--surface);
     border-radius: 6px;
     border-left: 3px solid transparent;
     align-items: start;
     font-size: 12px;
   }
 
-  .validation-item.ERROR { border-left-color: var(--error); }
-  .validation-item.WARNING { border-left-color: var(--warn); }
-  .validation-item.INFO { border-left-color: var(--accent); }
+  .validation-item.ERROR   { border-left-color: var(--error); background: #FEF5F5; }
+  .validation-item.WARNING { border-left-color: var(--warn);  background: #FFFBF0; }
+  .validation-item.INFO    { border-left-color: var(--info);  background: #F0F5FF; }
 
   .vi-severity {
     font-family: var(--mono);
@@ -540,13 +587,13 @@
     text-align: center;
   }
 
-  .vi-severity.ERROR { background: rgba(255,68,102,0.15); color: var(--error); }
-  .vi-severity.WARNING { background: rgba(255,170,0,0.15); color: var(--warn); }
-  .vi-severity.INFO { background: rgba(0,200,255,0.15); color: var(--accent); }
+  .vi-severity.ERROR   { background: rgba(192,21,42,0.1);  color: var(--error); }
+  .vi-severity.WARNING { background: rgba(180,83,9,0.1);   color: var(--warn); }
+  .vi-severity.INFO    { background: rgba(26,95,168,0.1);  color: var(--info); }
 
-  .vi-field { font-family: var(--mono); color: var(--accent2); }
-  .vi-line { font-family: var(--mono); color: var(--text3); }
-  .vi-msg { color: var(--text); line-height: 1.4; }
+  .vi-field { font-family: var(--mono); color: #1A5FA8; }
+  .vi-line  { font-family: var(--mono); color: var(--text3); }
+  .vi-msg   { color: var(--text); line-height: 1.4; }
 
   /* ─── Training ─── */
   .progress-bar-wrap {
@@ -560,19 +607,19 @@
   .progress-bar {
     height: 100%;
     border-radius: 100px;
-    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    background: var(--wf-red);
     transition: width 0.5s ease;
-    box-shadow: 0 0 10px rgba(0,200,255,0.5);
+    box-shadow: 0 0 8px rgba(215,30,40,0.35);
   }
 
   .training-log {
-    background: #020810;
+    background: #1C1C1C;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
     font-family: var(--mono);
     font-size: 11px;
-    color: var(--accent3);
+    color: #8AC882;
     max-height: 200px;
     overflow-y: auto;
     line-height: 1.7;
@@ -586,7 +633,7 @@
   }
 
   .stat-card {
-    background: var(--surface2);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px;
@@ -618,10 +665,10 @@
     border-left: 3px solid;
   }
 
-  .alert-info { background: rgba(0,200,255,0.07); border-color: var(--accent); color: var(--accent); }
-  .alert-success { background: rgba(0,255,170,0.07); border-color: var(--success); color: var(--success); }
-  .alert-error { background: rgba(255,68,102,0.07); border-color: var(--error); color: var(--error); }
-  .alert-warn { background: rgba(255,170,0,0.07); border-color: var(--warn); color: var(--warn); }
+  .alert-info    { background: #EFF5FF; border-color: var(--info);    color: var(--info); }
+  .alert-success { background: #EAF5EF; border-color: var(--success); color: var(--success); }
+  .alert-error   { background: var(--wf-red-pale); border-color: var(--error); color: var(--error); }
+  .alert-warn    { background: #FFFBF0; border-color: var(--warn);    color: var(--warn); }
 
   /* ─── Toggle Switch ─── */
   .toggle-wrap {
@@ -644,7 +691,7 @@
     position: absolute;
     inset: 0;
     background: var(--surface3);
-    border: 1px solid var(--border2);
+    border: 1.5px solid var(--border2);
     border-radius: 100px;
     transition: 0.2s;
   }
@@ -654,15 +701,22 @@
     position: absolute;
     width: 16px;
     height: 16px;
-    background: var(--text3);
+    background: #FFFFFF;
     border-radius: 50%;
     top: 2px;
     left: 2px;
     transition: 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
 
-  .toggle input:checked + .toggle-slider { background: rgba(0,200,255,0.2); border-color: var(--accent); }
-  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+  .toggle input:checked + .toggle-slider {
+    background: var(--wf-red);
+    border-color: var(--wf-red-dark);
+  }
+
+  .toggle input:checked + .toggle-slider::before {
+    transform: translateX(18px);
+  }
 
   .toggle-label { font-size: 12px; color: var(--text2); }
 
@@ -678,8 +732,8 @@
   .spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(0,0,0,0.2);
-    border-top-color: #000;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #FFFFFF;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
@@ -705,12 +759,12 @@
   .spec-table th {
     text-align: left;
     padding: 8px 12px;
-    background: var(--surface3);
+    background: var(--surface2);
     color: var(--text3);
     font-size: 9px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--wf-red);
   }
 
   .spec-table td {
@@ -719,16 +773,16 @@
     color: var(--text2);
   }
 
-  .spec-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .spec-table tr:hover td { background: var(--surface); }
 
-  .spec-code { color: var(--accent3); }
-  .spec-val { color: var(--accent); }
+  .spec-code { color: #1A7340; font-weight: 600; }
+  .spec-val  { color: #1A5FA8; }
 
   /* ─── Scrollbar ─── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--surface); }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--wf-red); }
 
   @media (max-width: 900px) {
     .main { grid-template-columns: 1fr; }
@@ -736,6 +790,113 @@
     .spec-grid { grid-template-columns: 1fr; }
     .result-summary { grid-template-columns: 1fr 1fr; }
   }
+
+  /* ─── Oracle Panel ─── */
+  .oracle-section-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  .connection-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .connection-indicator.live {
+    background: #EAF5EF;
+    border: 1px solid #A3D4B5;
+    color: var(--success);
+  }
+
+  .connection-indicator.mock {
+    background: #FFFBF0;
+    border: 1px solid #F9C96D;
+    color: var(--warn);
+  }
+
+  .connection-indicator.error {
+    background: var(--wf-red-pale);
+    border: 1px solid rgba(215,30,40,0.3);
+    color: var(--error);
+  }
+
+  .db-stats-strip {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .db-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .db-stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+
+  .db-stat-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--text2);
+  }
+
+  .source-chip.oracle  { background: #EAF5EF; border-color: #A3D4B5; color: var(--success); }
+  .source-chip.mock    { background: #FFFBF0; border-color: #F9C96D; color: var(--warn); }
+  .source-chip.synth   { background: var(--wf-red-pale); border-color: rgba(215,30,40,0.3); color: var(--wf-red); }
+
+  #oraTrainProgress.card {
+    border-top: 3px solid var(--wf-red);
+    margin-top: 16px;
+  }
+
+  .oracle-schema-hint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 4px;
+    padding: 6px 10px;
+    background: var(--surface2);
+    border-radius: 4px;
+    border-left: 2px solid var(--wf-red);
+  }
+
 </style>
 </head>
 <body>
@@ -761,20 +922,23 @@
   <div class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-label">Operations</div>
-      <div class="nav-item active" onclick="showPanel('generate')">
+      <div class="nav-item active" onclick="showPanel('generate', event)">
         <span class="nav-icon">⚡</span> Generate
       </div>
-      <div class="nav-item" onclick="showPanel('validate')">
+      <div class="nav-item" onclick="showPanel('validate', event)">
         <span class="nav-icon">✓</span> Validate
       </div>
-      <div class="nav-item" onclick="showPanel('train')">
+      <div class="nav-item" onclick="showPanel('train', event)">
         <span class="nav-icon">🧠</span> Train Model
       </div>
     </div>
     <div class="divider"></div>
     <div class="sidebar-section">
       <div class="sidebar-label">Reference</div>
-      <div class="nav-item" onclick="showPanel('spec')">
+      <div class="nav-item" onclick="showPanel('oracle', event)">
+        <span class="nav-icon">🗄</span> Oracle DB
+      </div>
+      <div class="nav-item" onclick="showPanel('spec', event)">
         <span class="nav-icon">📋</span> Specification
       </div>
     </div>
@@ -797,7 +961,7 @@
     <!-- ─── GENERATE PANEL ─── -->
     <div class="panel active" id="panel-generate">
       <div class="panel-title">Generate File</div>
-      <div class="panel-subtitle">// Create synthetic ACH or VISA VCF files</div>
+      <div class="panel-subtitle">Create synthetic ACH or VISA VCF files</div>
 
       <div class="card">
         <div class="card-title">File Type</div>
@@ -875,7 +1039,7 @@
     <!-- ─── VALIDATE PANEL ─── -->
     <div class="panel" id="panel-validate">
       <div class="panel-title">Validate File</div>
-      <div class="panel-subtitle">// Validate against NACHA & VISA VCF specifications</div>
+      <div class="panel-subtitle">Validate against NACHA &amp; VISA VCF specifications</div>
 
       <div class="card">
         <div class="card-title">File Type</div>
@@ -947,7 +1111,7 @@
     <!-- ─── TRAIN PANEL ─── -->
     <div class="panel" id="panel-train">
       <div class="panel-title">Train Model</div>
-      <div class="panel-subtitle">// Fine-tune the SLM on synthetic ACH/VCF data</div>
+      <div class="panel-subtitle">Fine-tune the SLM on synthetic ACH/VCF data</div>
 
       <div class="alert alert-info">
         The SLM is a character-level GPT-style transformer trained on synthetic financial files.
@@ -1014,10 +1178,171 @@
       </div>
     </div>
 
+
+    <!-- ─── ORACLE PANEL ─── -->
+    <div class="panel" id="panel-oracle">
+      <div class="panel-title">Oracle Database</div>
+      <div class="panel-subtitle">Connect to Oracle and generate ACH files from live transaction data</div>
+
+      <!-- Connection Config -->
+      <div class="card" id="oracleConnCard">
+        <div class="card-title">Connection Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Host</label>
+            <input class="form-input" id="oraHost" value="localhost" placeholder="db.example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port</label>
+            <input class="form-input" id="oraPort" value="1521" type="number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Service / SID</label>
+            <input class="form-input" id="oraService" value="ORCL" placeholder="ORCL or XE">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input class="form-input" id="oraUser" value="finslm">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input class="form-input" id="oraPass" type="password" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Schema</label>
+            <input class="form-input" id="oraSchema" value="FINSLM">
+          </div>
+        </div>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="oraMock">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Mock mode (use synthetic data, no real DB needed)</span>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="oraTestBtn" onclick="testOracleConnection()">
+            <span>🔌</span> Test Connection
+          </button>
+          <button class="btn btn-secondary" onclick="loadOracleCompanies()">
+            <span>🏢</span> Load Companies
+          </button>
+        </div>
+        <div id="oraStatus" style="margin-top:12px;display:none"></div>
+      </div>
+
+      <!-- Generate from Oracle -->
+      <div class="card">
+        <div class="card-title">Generate ACH from Oracle</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Company</label>
+            <select class="form-select" id="oraCompanyId">
+              <option value="">All Companies</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">SEC Code</label>
+            <select class="form-select" id="oraSecCode">
+              <option value="">All SEC Codes</option>
+              <option value="PPD">PPD – Prearranged</option>
+              <option value="CCD">CCD – Corporate</option>
+              <option value="CTX">CTX – Corp Trade</option>
+              <option value="WEB">WEB – Internet</option>
+              <option value="TEL">TEL – Telephone</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Effective Date (YYMMDD)</label>
+            <input class="form-input" id="oraEffDate" placeholder="e.g. 260502">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Transactions</label>
+            <input class="form-input" id="oraMaxTxns" type="number" value="500" min="1" max="50000">
+          </div>
+        </div>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="oraSaveAudit" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Save to ACH_FILE_LOG (audit trail)</span>
+        </div>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="oraSaveCorpus" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Save to ACH_TRAINING_CORPUS (feeds future SLM training)</span>
+        </div>
+        <button class="btn btn-primary" id="oraGenBtn" onclick="generateFromOracle()">
+          <span>⚡</span> Generate from Oracle
+        </button>
+      </div>
+
+      <!-- Oracle generated output -->
+      <div class="card" id="oraOutputCard" style="display:none">
+        <div class="card-title">Generated Output</div>
+        <div id="oraFileMeta" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+        <div class="code-preview" id="oraFileContent"></div>
+        <div class="toolbar">
+          <button class="btn btn-secondary btn-sm" onclick="copyOraFile()">⎘ Copy</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadOraFile()">⬇ Download</button>
+          <button class="btn btn-secondary btn-sm" onclick="validateOraFile()">✓ Validate</button>
+        </div>
+      </div>
+
+      <!-- Oracle-aware Training -->
+      <div class="card">
+        <div class="card-title">Train SLM on Oracle Data</div>
+        <div class="alert alert-info" style="margin-bottom:16px">
+          Pulls real ACH files from the Oracle corpus table, augments with live-generated
+          files, then fine-tunes the SLM. Falls back to synthetic if Oracle is unavailable.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Model Size</label>
+            <select class="form-select" id="oraModelConfig">
+              <option value="nano">Nano (~1M, fast)</option>
+              <option value="small" selected>Small (~4M)</option>
+              <option value="medium">Medium (~10M)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Oracle Files</label>
+            <input class="form-input" id="oraNFiles" type="number" value="200" min="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Synthetic Files</label>
+            <input class="form-input" id="oraNSynth" type="number" value="50" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Epochs</label>
+            <input class="form-input" id="oraEpochs" type="number" value="5" min="1" max="50">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="oraTrainBtn" onclick="startOracleTraining()">
+          <span>🧠</span> Train on Oracle Data
+        </button>
+        <div class="card" id="oraTrainProgress" style="display:none;margin-top:16px">
+          <div class="card-title">Training Progress</div>
+          <div id="oraTrainMsg" style="font-family:var(--mono);font-size:12px;color:var(--text2);margin-bottom:8px">
+            Initialising...
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="oraProgressBar" style="width:0%"></div>
+          </div>
+          <div class="training-log" id="oraTrainingLog"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── SPEC PANEL ─── -->
     <div class="panel" id="panel-spec">
       <div class="panel-title">Specification Reference</div>
-      <div class="panel-subtitle">// NACHA ACH & VISA VCF format documentation</div>
+      <div class="panel-subtitle">NACHA ACH &amp; VISA VCF format documentation</div>
 
       <div class="spec-grid">
         <div class="card">
@@ -1223,7 +1548,7 @@ async function downloadGenerated() {
 
 async function validateGenerated() {
   showPanel('validate');
-  document.querySelectorAll('.nav-item')[1].classList.add('active');
+  // nav active handled by showPanel
   document.querySelectorAll('.nav-item')[0].classList.remove('active');
   selectValType(currentGenType);
   document.getElementById('pasteContent').value = generatedContent;
@@ -1480,9 +1805,19 @@ function showAlert(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `alert alert-${type}`;
   el.textContent = msg;
-  el.style.cssText = 'position:fixed;top:80px;right:20px;z-index:999;max-width:400px;animation:fadeIn 0.3s';
+  el.style.cssText = [
+    'position:fixed','top:80px','right:20px','z-index:9999',
+    'max-width:380px','background:#ffffff',
+    'box-shadow:0 4px 20px rgba(0,0,0,0.12),0 1px 4px rgba(0,0,0,0.08)',
+    'border-radius:8px','opacity:0','transform:translateX(16px)',
+    'transition:opacity 0.25s,transform 0.25s',
+  ].join(';');
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  requestAnimationFrame(() => { el.style.opacity='1'; el.style.transform='translateX(0)'; });
+  setTimeout(() => {
+    el.style.opacity='0'; el.style.transform='translateX(16px)';
+    setTimeout(() => el.remove(), 300);
+  }, 4000);
 }
 
 function escHtml(str) {
@@ -1493,6 +1828,313 @@ function escHtml(str) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadModelStatus();
 setInterval(loadModelStatus, 30000);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ORACLE DB FUNCTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+let oracleFileContent = '';
+let oracleLogLines    = [];
+let oraclePollInterval = null;
+
+// ─── Build Oracle connection payload from form ────────────────────────────────
+function getOraclePayload(extra = {}) {
+  return {
+    host:    document.getElementById('oraHost').value.trim()    || 'localhost',
+    port:    parseInt(document.getElementById('oraPort').value) || 1521,
+    service: document.getElementById('oraService').value.trim() || 'ORCL',
+    user:    document.getElementById('oraUser').value.trim()    || 'finslm',
+    password:document.getElementById('oraPass').value,
+    schema:  document.getElementById('oraSchema').value.trim()  || 'FINSLM',
+    mock:    document.getElementById('oraMock').checked ? 'true' : 'false',
+    ...extra,
+  };
+}
+
+// ─── Test Oracle connection ───────────────────────────────────────────────────
+async function testOracleConnection() {
+  const btn = document.getElementById('oraTestBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="border-top-color:#fff"></div> Testing…';
+
+  const statusDiv = document.getElementById('oraStatus');
+  statusDiv.style.display = 'none';
+
+  try {
+    const res  = await fetch('/api/oracle/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getOraclePayload()),
+    });
+    const data = await res.json();
+
+    const ok    = data.success;
+    const h     = data.health || {};
+    const mode  = h.mode  || (ok ? 'live' : 'error');
+    const driver= h.driver || '–';
+
+    statusDiv.style.display = '';
+    statusDiv.innerHTML = `
+      <div class="alert alert-${ok ? 'success' : 'error'}" style="margin:0">
+        <strong>${ok ? '✓ Connected' : '✗ Failed'}</strong> — ${data.message}
+        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+          ${renderKV('Mode',   mode)}
+          ${renderKV('Driver', driver)}
+          ${renderKV('DSN',    h.dsn || '–')}
+          ${renderKV('Schema', h.schema || '–')}
+          ${h.pool_open != null ? renderKV('Pool open', h.pool_open) : ''}
+          ${h.pool_busy != null ? renderKV('Pool busy', h.pool_busy) : ''}
+        </div>
+      </div>`;
+
+    if (ok) {
+      // Update header badge
+      document.getElementById('modelBadge').textContent =
+        `MODEL: ${mode === 'live' ? 'ORACLE ✓' : 'MOCK'}`;
+      showAlert(mode === 'mock'
+        ? 'Running in Mock mode — synthetic data only'
+        : 'Oracle connection established!', ok ? 'success' : 'warn');
+    } else {
+      showAlert(data.message, 'error');
+    }
+  } catch (e) {
+    showAlert('Network error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🔌</span> Test Connection';
+  }
+}
+
+// ─── Load companies from Oracle ───────────────────────────────────────────────
+async function loadOracleCompanies() {
+  const sec = document.getElementById('oraSecCode').value;
+  const url = '/api/oracle/companies' + (sec ? `?sec_code=${sec}` : '');
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    const sel  = document.getElementById('oraCompanyId');
+    sel.innerHTML = '<option value="">All Companies</option>';
+    if (Array.isArray(data)) {
+      data.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value       = c.company_id;
+        opt.textContent = `${c.company_name.trim()} (${c.sec_code})`;
+        sel.appendChild(opt);
+      });
+      showAlert(`Loaded ${data.length} companies from Oracle`, 'success');
+    } else {
+      showAlert(data.error || 'Failed to load companies', 'error');
+    }
+  } catch (e) {
+    showAlert('Error loading companies: ' + e.message, 'error');
+  }
+}
+
+// ─── Generate ACH from Oracle ─────────────────────────────────────────────────
+async function generateFromOracle() {
+  const btn = document.getElementById('oraGenBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="border-top-color:#fff"></div> Generating…';
+  document.getElementById('oraOutputCard').style.display = 'none';
+
+  const co  = document.getElementById('oraCompanyId').value;
+  const sec = document.getElementById('oraSecCode').value;
+  const eff = document.getElementById('oraEffDate').value.trim();
+
+  const payload = getOraclePayload({
+    max_transactions: parseInt(document.getElementById('oraMaxTxns').value) || 500,
+    save_audit:  document.getElementById('oraSaveAudit').checked,
+    save_corpus: document.getElementById('oraSaveCorpus').checked,
+  });
+  if (co)  payload.company_id     = parseInt(co);
+  if (sec) payload.sec_code       = sec;
+  if (eff) payload.effective_date = eff;
+
+  try {
+    const res  = await fetch('/api/oracle/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.error || 'Generation failed', 'error');
+      return;
+    }
+
+    oracleFileContent = data.content;
+    document.getElementById('oraFileContent').textContent = data.content;
+    document.getElementById('oraOutputCard').style.display = '';
+
+    const debit  = (data.total_debit  || 0).toLocaleString('en-US', {style:'currency', currency:'USD'});
+    const credit = (data.total_credit || 0).toLocaleString('en-US', {style:'currency', currency:'USD'});
+    document.getElementById('oraFileMeta').innerHTML = [
+      badge(data.file_type  || 'ACH',               'active'),
+      badge(data.source     || '–',                  ''),
+      badge(`${data.batch_count  || 0} batches`,     ''),
+      badge(`${data.entry_count  || 0} entries`,     ''),
+      badge(`DR: ${debit}`,                          ''),
+      badge(`CR: ${credit}`,                         ''),
+      data.file_id ? badge(`FILE_ID: ${data.file_id}`, '') : '',
+    ].join('');
+
+    showAlert(`Generated ${data.entry_count} entries from ${data.source}`, 'success');
+  } catch (e) {
+    showAlert('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> Generate from Oracle';
+  }
+}
+
+function copyOraFile() {
+  navigator.clipboard.writeText(oracleFileContent)
+    .then(() => showAlert('Copied to clipboard!', 'success'));
+}
+
+async function downloadOraFile() {
+  const res = await fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: oracleFileContent,
+      file_type: 'ACH',
+      filename: `oracle_ach_${Date.now()}.ach`,
+    }),
+  });
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'oracle_generated.ach' });
+  a.click();
+}
+
+async function validateOraFile() {
+  // Switch to validate panel and prefill
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-validate').classList.add('active');
+  // nav active handled by showPanel
+  selectValType('ACH');
+  document.getElementById('pasteContent').value = oracleFileContent;
+  await validateFile();
+}
+
+// ─── Oracle-aware Training ────────────────────────────────────────────────────
+async function startOracleTraining() {
+  const btn = document.getElementById('oraTrainBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="border-top-color:#fff"></div> Starting…';
+
+  oracleLogLines = [];
+  document.getElementById('oraTrainingLog').textContent = '';
+  document.getElementById('oraTrainProgress').style.display = '';
+  document.getElementById('oraProgressBar').style.width = '0%';
+
+  const payload = getOraclePayload({
+    model_config:      document.getElementById('oraModelConfig').value,
+    n_oracle_files:    parseInt(document.getElementById('oraNFiles').value)  || 200,
+    n_synthetic_files: parseInt(document.getElementById('oraNSynth').value)  || 50,
+    max_epochs:        parseInt(document.getElementById('oraEpochs').value)  || 5,
+  });
+
+  try {
+    const res  = await fetch('/api/oracle/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.error || 'Failed to start training', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧠</span> Train on Oracle Data';
+      return;
+    }
+
+    oraclePollInterval = setInterval(pollOracleTraining, 2000);
+
+  } catch (e) {
+    showAlert('Error: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<span>🧠</span> Train on Oracle Data';
+  }
+}
+
+async function pollOracleTraining() {
+  try {
+    const res  = await fetch('/api/train/status');
+    const data = await res.json();
+
+    document.getElementById('oraTrainMsg').textContent = data.message;
+    document.getElementById('oraProgressBar').style.width = (data.progress || 0) + '%';
+
+    if (data.message && !oracleLogLines.includes(data.message) && data.message !== 'Idle') {
+      oracleLogLines.push(
+        `[${new Date().toLocaleTimeString()}] ${data.message}`
+      );
+      const log = document.getElementById('oraTrainingLog');
+      log.textContent = oracleLogLines.join('\n');
+      log.scrollTop = log.scrollHeight;
+    }
+
+    if (!data.running) {
+      clearInterval(oraclePollInterval);
+      oraclePollInterval = null;
+      const btn = document.getElementById('oraTrainBtn');
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧠</span> Train on Oracle Data';
+
+      if (data.error) {
+        showAlert('Training failed: ' + data.error, 'error');
+      } else if (data.result) {
+        const loss = data.result.best_val_loss?.toFixed(4) || '–';
+        showAlert(`Oracle training complete! val_loss = ${loss}`, 'success');
+        loadModelStatus();
+      }
+    }
+  } catch (e) { /* ignore poll noise */ }
+}
+
+// ─── Poll Oracle health on panel open ────────────────────────────────────────
+async function refreshOracleHealth() {
+  try {
+    const res  = await fetch('/api/oracle/health');
+    const data = await res.json();
+    const statusDiv = document.getElementById('oraStatus');
+    if (!statusDiv) return;
+    const mode = data.mode || 'unknown';
+    statusDiv.style.display = '';
+    statusDiv.innerHTML = `
+      <div class="alert alert-${mode === 'live' ? 'success' : 'info'}" style="margin:0">
+        <strong>Last known status:</strong> ${mode.toUpperCase()} — driver: ${data.driver || '–'}
+        ${data.last_error ? `<br><span style="color:var(--error)">Error: ${escHtml(data.last_error)}</span>` : ''}
+      </div>`;
+  } catch (_) {}
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function renderKV(label, value) {
+  return `<div style="font-size:10px;font-family:var(--mono)">
+    <div style="color:var(--text3);letter-spacing:1px;text-transform:uppercase">${label}</div>
+    <div style="font-weight:600;color:var(--text)">${escHtml(String(value))}</div>
+  </div>`;
+}
+
+function badge(text, cls = '') {
+  return `<span class="badge ${cls}" style="font-size:11px">${escHtml(text)}</span>`;
+}
+
+// ─── Extend showPanel to trigger Oracle health refresh ────────────────────────
+const _origShowPanel = showPanel;
+function showPanel(name, evt) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  if (evt && evt.currentTarget) evt.currentTarget.classList.add('active');
+  if (name === 'oracle') refreshOracleHealth();
+}
 </script>
 </body>
 </html>

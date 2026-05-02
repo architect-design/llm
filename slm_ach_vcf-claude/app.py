@@ -323,3 +323,163 @@ if __name__ == '__main__':
     print(f"  Starting server at http://localhost:5000")
     print(f"  Model directory: {app.config['MODEL_DIR']}")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ORACLE-SPECIFIC ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_oracle_config(data: dict) -> "OracleConfig":
+    from db.oracle_connector import OracleConfig
+    cfg = OracleConfig()
+    # Allow per-request overrides (connection-test screen)
+    for field in ("host","port","service","user","password","schema","mock"):
+        if field in data:
+            if field == "port":
+                setattr(cfg, field, int(data[field]))
+            elif field == "mock":
+                setattr(cfg, field, str(data[field]).lower() == "true")
+            else:
+                setattr(cfg, field, str(data[field]))
+    return cfg
+
+
+@app.route('/api/oracle/test', methods=['POST'])
+def oracle_test_connection():
+    """Test Oracle DB connectivity."""
+    data = request.get_json() or {}
+    try:
+        from db.oracle_connector import OracleConnectionPool
+        OracleConnectionPool.reset()          # force reconnect with new params
+        cfg = _get_oracle_config(data)
+        from db.oracle_connector import get_pool
+        pool = get_pool(cfg)
+        ok, msg = pool.test_connection()
+        health = pool.health()
+        return jsonify({"success": ok, "message": msg, "health": health})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/oracle/health', methods=['GET'])
+def oracle_health():
+    """Return Oracle pool health without making a new connection."""
+    try:
+        from db.oracle_connector import get_pool
+        pool = get_pool()
+        return jsonify(pool.health())
+    except Exception as e:
+        return jsonify({"error": str(e), "mode": "unknown"}), 500
+
+
+@app.route('/api/oracle/generate', methods=['POST'])
+def oracle_generate_ach():
+    """Generate ACH file from Oracle pending transactions."""
+    data = request.get_json() or {}
+    try:
+        from db.oracle_connector import OracleConnectionPool
+        cfg = _get_oracle_config(data)
+        OracleConnectionPool.reset()
+        from data.oracle_ach_generator import OracleACHGenerator
+        gen = OracleACHGenerator(cfg)
+        result = gen.generate(
+            company_id      = data.get("company_id"),
+            sec_code        = data.get("sec_code"),
+            effective_date  = data.get("effective_date"),
+            max_transactions= int(data.get("max_transactions", 500)),
+            save_audit      = bool(data.get("save_audit", True)),
+            save_corpus     = bool(data.get("save_corpus", True)),
+        )
+        return jsonify({
+            "content":      result["content"],
+            "file_name":    result["file_name"],
+            "batch_count":  result["batch_count"],
+            "entry_count":  result["entry_count"],
+            "total_debit":  result["total_debit"]  / 100,
+            "total_credit": result["total_credit"] / 100,
+            "source":       result["source"],
+            "file_id":      result["file_id"],
+            "transaction_count": len(result["transactions"]),
+            "generated_at": datetime.now().isoformat(),
+            "file_type":    "ACH",
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/oracle/companies', methods=['GET'])
+def oracle_companies():
+    """List companies from Oracle ACH_COMPANIES table."""
+    sec = request.args.get("sec_code")
+    try:
+        from db.ach_repository import ACHRepository
+        repo = ACHRepository()
+        companies = repo.get_companies(sec_code=sec)
+        return jsonify([{
+            "company_id":          c.company_id,
+            "company_name":        c.company_name.strip(),
+            "company_id_number":   c.company_id_number.strip(),
+            "company_entry_desc":  c.company_entry_desc.strip(),
+            "sec_code":            c.sec_code,
+            "service_class_code":  c.service_class_code,
+        } for c in companies])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/oracle/train', methods=['POST'])
+def oracle_train():
+    """Train the ACH SLM using Oracle data (+ synthetic augmentation)."""
+    global training_state
+    if training_state["running"]:
+        return jsonify({"error": "Training already in progress"}), 409
+
+    data = request.get_json() or {}
+    cfg_overrides = {
+        "model_config":       data.get("model_config",        "nano"),
+        "n_oracle_files":     int(data.get("n_oracle_files",  200)),
+        "n_synthetic_files":  int(data.get("n_synthetic_files", 50)),
+        "n_val_files":        int(data.get("n_val_files",      30)),
+        "max_epochs":         int(data.get("max_epochs",        5)),
+        "batch_size":         int(data.get("batch_size",        4)),
+        "learning_rate":      float(data.get("learning_rate",  3e-4)),
+        "save_dir":           app.config["MODEL_DIR"],
+    }
+
+    training_state = {
+        "running": True,
+        "file_type": "ACH",
+        "message": "Initialising Oracle-aware training...",
+        "progress": 0,
+        "result": None,
+        "error": None,
+        "started_at": datetime.now().isoformat(),
+        "source": "oracle",
+    }
+
+    def run():
+        global training_state
+        try:
+            from data.oracle_trainer import OracleAwareTrainer
+            oracle_cfg = _get_oracle_config(data)
+            trainer = OracleAwareTrainer(oracle_cfg, cfg_overrides)
+
+            def cb(msg, p):
+                training_state["message"]  = msg
+                training_state["progress"] = p or training_state["progress"]
+
+            result = trainer.train(callback=cb)
+            training_state["result"]  = result
+            training_state["message"] = (
+                f"Oracle training complete! val_loss={result['best_val_loss']:.4f}"
+            )
+            training_state["progress"] = 100
+        except Exception as e:
+            training_state["error"]   = str(e)
+            training_state["message"] = f"Oracle training failed: {e}"
+        finally:
+            training_state["running"] = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"status": "started", "source": "oracle", "config": cfg_overrides})
+
