@@ -73,16 +73,6 @@ training_state = {
 - `GET /api/spec` - Get format specifications
   - Returns: ACH and VCF format details
 
-**Oracle Integration:**
-- `POST /api/oracle/test` - Test Oracle DB connection
-- `GET /api/oracle/health` - Check Oracle connection health
-- `POST /api/oracle/generate` - Generate ACH from Oracle pending transactions
-- `GET /api/oracle/companies` - List companies from Oracle
-- `POST /api/oracle/train` - Train on Oracle data + synthetic augmentation
-
-#### Helper Functions
-- `_get_oracle_config(data)` - Parse Oracle config from API request
-
 ---
 
 ## Model Training and Generation
@@ -1136,15 +1126,6 @@ else:
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
    ```
 
-3. **Set up Oracle (optional)**
-   ```bash
-   # If you have an Oracle database:
-   export ORACLE_HOST=your-host
-   export ORACLE_USER=your-user
-   export ORACLE_PASSWORD=your-password
-   # See db/oracle_connector.py for all env vars
-   ```
-
 ### Running the Application
 
 ```bash
@@ -1392,9 +1373,9 @@ response (model_path, best_val_loss, train_losses)
 ```
 request (company_id, sec_code, max_transactions...)
     ↓
-OracleACHGenerator.generate()
-    ├→ ACHRepository.get_pending_transactions()
-    │   └→ Oracle SELECT or mock data
+ChromaACHGenerator.generate()
+    ├→ ChromaDBClient.get() → ach_transactions collection
+    │   └→ ChromaDB query or synthetic fallback
     ├→ Group by (company_id, sec_code, service_class_code)
     ├→ _build_records()
     │   ├→ File Header (type 1)
@@ -1405,8 +1386,8 @@ OracleACHGenerator.generate()
     │   │   └→ Batch Control (type 8)
     │   ├→ File Control (type 9)
     │   └→ Padding to multiples of 10
-    ├→ ACHRepository.log_file() → ACH_FILE_LOG table
-    ├→ ACHRepository.save_corpus_entry() → ACH_TRAINING_CORPUS table
+    ├→ ChromaDBClient.add_documents() → ach_file_log collection
+    ├→ ChromaDBClient.add_documents() → ach_training_corpus collection
     └→ Return result dict
     ↓
 response (content, file_name, batch_count, entry_count, file_id)
@@ -1421,14 +1402,6 @@ response (content, file_name, batch_count, entry_count, file_id)
 **Solution:** Falls back to Bigram model automatically. To use Transformer:
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-```
-
-### Oracle Connection Fails
-**Problem:** "Connection failed: ORA-12514: TNS:listener does not recognize..."
-**Solution:** App automatically falls back to mock mode. Provides warning but continues:
-```python
-# In app output:
-# Oracle pool failed (localhost:1521/ORCL) — falling back to MOCK mode
 ```
 
 ### Model Takes Too Long to Train
@@ -1464,7 +1437,6 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 ### Optional
 - **PyTorch**: Transformer model (recommended)
-- **python-oracledb** or **cx_Oracle**: Oracle DB (optional)
 
 See `requirements.txt` for versions.
 
@@ -1544,4 +1516,3 @@ slm_ach_vcf-claude/
 ---
 
 *This comprehensive documentation is designed to help novice developers understand and work with the FinSLM project. Start with the Quick Start section, then dive into specific areas based on your task.*
-
