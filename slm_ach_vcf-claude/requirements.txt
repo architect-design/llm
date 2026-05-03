@@ -1,5 +1,12 @@
-torch
-flask
-werkzeug
-numpy
-oracledb
+# Core web framework
+flask>=3.0.0
+werkzeug>=3.0.0
+
+# Vector database (replaces Oracle)
+chromadb>=1.0.0
+
+# Numerical / ML
+numpy>=1.24.0
+
+# Optional — enables Transformer SLM (GPU or CPU)
+# torch>=2.0.0

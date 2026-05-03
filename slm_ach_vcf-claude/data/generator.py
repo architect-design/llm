@@ -76,6 +76,14 @@ SEC_CODES = ["PPD", "CCD", "CTX", "WEB", "TEL"]
 TRANSACTION_CODES_CREDIT = ["22", "32"]  # Checking/Savings credit
 TRANSACTION_CODES_DEBIT = ["27", "37"]   # Checking/Savings debit
 
+
+# ── VCFGenerator is now the full multi-category generator ────────────────────
+try:
+    from data.vcf.vcf_generator import VCFGenerator
+except ImportError:
+    pass  # VCFGenerator available directly below as legacy fallback
+
+
 MERCHANT_NAMES = [
     "AMAZON.COM", "WALMART STORE 4521", "TARGET CORP", "COSTCO WHSE 0123",
     "HOME DEPOT 0456", "BEST BUY 00789", "KROGER #5521", "WALGREENS #1234",

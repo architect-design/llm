@@ -1,97 +1,92 @@
 """
-Oracle ACH Data Repository
-All SQL queries and data-access logic for ACH file generation.
-Provides typed, validated objects that the generator can consume directly.
+ChromaDB ACH Repository
+All data-access operations for ACH generation using ChromaDB.
 
-Query strategy:
-  • All queries are parameterised (no f-string SQL — prevents injection)
-  • DATE types are returned as Python datetime objects by oracledb
-  • CLOB columns are read() before use
-  • Falls back to synthetic data if in MOCK mode
+Key design decisions vs Oracle:
+  - No SQL JOINs: transactions are stored denormalised (company + ODFI fields
+    copied in at insert time) so the generator reads one collection only.
+  - ChromaDB `where` filters replace SQL WHERE clauses.
+  - `get()` replaces SELECT by PK; `query()` replaces full-table scans.
+  - Amounts stay as integer cents in metadata; ChromaDB metadata supports int.
+  - Document text is the primary searchable body; metadata drives filtering.
 """
 
 import os
 import sys
+import json
+import uuid
 import logging
-from datetime import datetime, date, timedelta
-from typing import List, Optional, Dict, Any, Tuple
-from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
+import random
 
 BASE = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, BASE)
 
-from db.oracle_connector import get_pool, execute_query, OracleConfig
+from db.chroma_client import get_client, get_collection, Collections
 
 log = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Domain objects returned by the repository
+# Domain objects (identical interface to the old Oracle repository)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class ODFIConfig:
-    routing_number:    str
-    bank_name:         str
-    immediate_dest:    str
-    immediate_origin:  str
-    dest_short_name:   str
+    id: str
+    routing_number: str
+    bank_name: str
+    immediate_dest: str
+    immediate_origin: str
+    dest_short_name: str
     origin_short_name: str
 
 
 @dataclass
 class CompanyRecord:
-    company_id:        int
-    company_name:      str          # max 16 chars
-    company_id_number: str          # max 10 chars
-    company_entry_desc: str         # max 10 chars
-    sec_code:          str          # 3 chars
-    service_class_code: str         # 200/220/225
+    company_id: str
+    company_name: str
+    company_id_number: str
+    company_entry_desc: str
+    sec_code: str
+    service_class_code: str
+    odfi_id: str = ""
     discretionary_data: str = "  "
 
 
 @dataclass
-class AccountRecord:
-    account_id:        int
-    individual_name:   str          # max 22 chars
-    individual_id:     str          # max 15 chars
-    rdfi_routing:      str          # 8 digits
-    rdfi_check_digit:  str          # 1 digit
-    account_number:    str          # max 17 chars
-    account_type:      str          # C/S/G/L
-
-
-@dataclass
 class TransactionRecord:
-    transaction_id:    int
-    account_id:        int
-    company_id:        int
-    transaction_code:  str          # 2 digits
-    amount_cents:      int
-    effective_date_str: str         # YYMMDD
-    individual_id:     str
-    individual_name:   str
-    rdfi_routing:      str          # 8 digits
-    rdfi_check_digit:  str
-    account_number:    str
-    account_type:      str
+    transaction_id: str
+    account_id: str
+    company_id: str
+    transaction_code: str
+    amount_cents: int
+    effective_date_str: str
+    individual_id: str
+    individual_name: str
+    rdfi_routing: str
+    rdfi_check_digit: str
+    account_number: str
+    account_type: str
     discretionary_data: str
-    addenda_info:      Optional[str]
-    company_name:      str
+    addenda_info: Optional[str]
+    company_name: str
     company_id_number: str
     company_entry_desc: str
-    sec_code:          str
+    sec_code: str
     service_class_code: str
     company_disc_data: str
-    odfi_routing:      str          # 9 digits
-    immediate_dest:    str
-    immediate_origin:  str
-    dest_short_name:   str
+    odfi_routing: str
+    immediate_dest: str
+    immediate_origin: str
+    dest_short_name: str
     origin_short_name: str
+    status: str = "PENDING"
 
     @property
     def amount_str(self) -> str:
-        """Format cents as 10-digit NACHA amount field."""
         return str(self.amount_cents).zfill(10)
 
     @property
@@ -100,357 +95,486 @@ class TransactionRecord:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SQL Queries
+# Helper utilities
 # ─────────────────────────────────────────────────────────────────────────────
 
-_SQL_PENDING_TRANSACTIONS = """
-SELECT
-    TRANSACTION_ID,
-    COMPANY_ID,
-    ACCOUNT_ID,
-    TRANSACTION_CODE,
-    AMOUNT_CENTS,
-    EFFECTIVE_DATE_STR,
-    INDIVIDUAL_ID,
-    INDIVIDUAL_NAME,
-    RDFI_ROUTING,
-    RDFI_CHECK_DIGIT,
-    ACCOUNT_NUMBER,
-    ACCOUNT_TYPE,
-    DISCRETIONARY_DATA,
-    ADDENDA_INFO,
-    COMPANY_NAME,
-    COMPANY_ID_NUMBER,
-    COMPANY_ENTRY_DESC,
-    SEC_CODE,
-    SERVICE_CLASS_CODE,
-    COMPANY_DISC_DATA,
-    NVL(ODFI_ROUTING, '021000021')    AS ODFI_ROUTING,
-    NVL(IMMEDIATE_DEST, ' 021000021') AS IMMEDIATE_DEST,
-    NVL(IMMEDIATE_ORIGIN,'021000021 ') AS IMMEDIATE_ORIGIN,
-    NVL(DEST_SHORT_NAME, 'JPMORGAN CHASE NA  ') AS DEST_SHORT_NAME,
-    NVL(ORIGIN_SHORT_NAME,'FINSLM PAYMENTS    ') AS ORIGIN_SHORT_NAME,
-    STATUS
-FROM {schema}.V_ACH_PENDING_TRANSACTIONS
-WHERE 1=1
-  {company_filter}
-  {sec_filter}
-  {date_filter}
-ORDER BY COMPANY_ID, TRANSACTION_ID
-FETCH FIRST :max_rows ROWS ONLY
-"""
+def _now() -> str:
+    return datetime.now().isoformat()
 
-_SQL_COMPANIES = """
-SELECT
-    c.COMPANY_ID,
-    c.COMPANY_NAME,
-    c.COMPANY_ID_NUMBER,
-    c.COMPANY_ENTRY_DESC,
-    c.SEC_CODE,
-    c.SERVICE_CLASS_CODE,
-    NVL(c.DISCRETIONARY_DATA,'  ') AS DISCRETIONARY_DATA
-FROM {schema}.ACH_COMPANIES c
-WHERE c.IS_ACTIVE = 'Y'
-  {sec_filter}
-ORDER BY c.COMPANY_ID
-"""
+def _uid(prefix: str = "") -> str:
+    return f"{prefix}{uuid.uuid4().hex[:12]}"
 
-_SQL_ODFI = """
-SELECT
-    ROUTING_NUMBER,
-    BANK_NAME,
-    IMMEDIATE_DEST,
-    IMMEDIATE_ORIGIN,
-    DEST_SHORT_NAME,
-    ORIGIN_SHORT_NAME
-FROM {schema}.ACH_ODFI_CONFIG
-WHERE IS_ACTIVE = 'Y'
-  AND ODFI_ID = :odfi_id
-"""
+def _pad(s: str, n: int, char: str = " ") -> str:
+    return str(s or "").ljust(n)[:n]
 
-_SQL_LOG_FILE = """
-INSERT INTO {schema}.ACH_FILE_LOG (
-    FILE_NAME, FILE_ID_MODIFIER, ODFI_ID,
-    BATCH_COUNT, ENTRY_COUNT, BLOCK_COUNT,
-    TOTAL_DEBIT_CENTS, TOTAL_CREDIT_CENTS,
-    GENERATION_METHOD, IS_VALID, FILE_CONTENT
-) VALUES (
-    :file_name, :modifier, :odfi_id,
-    :batch_count, :entry_count, :block_count,
-    :debit, :credit,
-    'ORACLE', 'Y', :content
-) RETURNING FILE_ID INTO :file_id
-"""
-
-_SQL_SAVE_CORPUS = """
-INSERT INTO {schema}.ACH_TRAINING_CORPUS (
-    FILE_LOG_ID, FILE_CONTENT, SEC_CODE,
-    SERVICE_CLASS_CODE, BATCH_COUNT, ENTRY_COUNT, SPLIT_TYPE
-) VALUES (
-    :file_log_id, :content, :sec_code,
-    :scc, :batches, :entries, :split
-)
-"""
-
-_SQL_FETCH_CORPUS = """
-SELECT FILE_CONTENT
-FROM {schema}.ACH_TRAINING_CORPUS
-WHERE SPLIT_TYPE = :split
-  AND IS_USED_FOR_TRAINING = 'N'
-  {sec_filter}
-ORDER BY DBMS_RANDOM.VALUE
-FETCH FIRST :limit ROWS ONLY
-"""
+def _safe_int(v, default: int = 0) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Repository class
+# Repository
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ACHRepository:
     """
-    All database interactions for ACH generation.
-    Automatically uses MOCK data when the DB is unavailable.
+    ChromaDB-backed data repository for ACH generation.
+    Provides the same public interface as the former Oracle repository
+    so the generator and trainer require minimal changes.
     """
 
-    def __init__(self, config: Optional[OracleConfig] = None):
-        self.pool = get_pool(config)
-        self.schema = (config or OracleConfig()).schema
-        self._mock = self.pool.is_mock
+    def __init__(self, store_path: Optional[str] = None):
+        self._db = get_client(store_path)
+        self._db.seed_defaults()
 
-    # ── Helpers ──────────────────────────────────────────────────────────────
+    # ── ODFI ─────────────────────────────────────────────────────────────────
 
-    def _sql(self, template: str, **filters) -> str:
-        """Inject schema and optional WHERE fragments."""
-        return template.format(schema=self.schema, **filters)
+    def get_odfi(self, odfi_id: Optional[str] = None) -> ODFIConfig:
+        """Return one ODFI config (default: first active record)."""
+        col = self._db.collection(Collections.ODFI_CONFIG)
+        if odfi_id:
+            res = col.get(ids=[odfi_id])
+        else:
+            res = col.get(where={"is_active": {"$eq": "Y"}}, limit=1)
 
-    # ── Transaction queries ───────────────────────────────────────────────────
+        if not res or not res.get("ids"):
+            return self._default_odfi()
+
+        meta = res["metadatas"][0]
+        return ODFIConfig(
+            id=res["ids"][0],
+            routing_number=meta.get("routing_number", "021000021"),
+            bank_name=meta.get("bank_name", "DEFAULT BANK"),
+            immediate_dest=meta.get("immediate_dest", " 021000021"),
+            immediate_origin=meta.get("immediate_origin", "021000021 "),
+            dest_short_name=meta.get("dest_short_name", "DEFAULT BANK       "),
+            origin_short_name=meta.get("origin_short_name", "FINSLM PAYMENTS    "),
+        )
+
+    def list_odfi(self) -> List[ODFIConfig]:
+        col = self._db.collection(Collections.ODFI_CONFIG)
+        res = col.get(where={"is_active": {"$eq": "Y"}})
+        if not res or not res.get("ids"):
+            return [self._default_odfi()]
+        return [
+            ODFIConfig(
+                id=rid,
+                routing_number=m.get("routing_number", ""),
+                bank_name=m.get("bank_name", ""),
+                immediate_dest=m.get("immediate_dest", ""),
+                immediate_origin=m.get("immediate_origin", ""),
+                dest_short_name=m.get("dest_short_name", ""),
+                origin_short_name=m.get("origin_short_name", ""),
+            )
+            for rid, m in zip(res["ids"], res["metadatas"])
+        ]
+
+    @staticmethod
+    def _default_odfi() -> ODFIConfig:
+        return ODFIConfig(
+            id="odfi_default",
+            routing_number="021000021",
+            bank_name="JPMORGAN CHASE BANK NA",
+            immediate_dest=" 021000021",
+            immediate_origin="021000021 ",
+            dest_short_name="JPMORGAN CHASE NA  ",
+            origin_short_name="FINSLM PAYMENTS    ",
+        )
+
+    # ── Companies ─────────────────────────────────────────────────────────────
+
+    def get_companies(self, sec_code: Optional[str] = None) -> List[CompanyRecord]:
+        col = self._db.collection(Collections.COMPANIES)
+        where = {"is_active": {"$eq": "Y"}}
+        if sec_code:
+            where = {"$and": [{"is_active": {"$eq": "Y"}}, {"sec_code": {"$eq": sec_code}}]}
+
+        res = col.get(where=where, limit=200)
+        if not res or not res.get("ids"):
+            return self._mock_companies(sec_code)
+
+        return [
+            CompanyRecord(
+                company_id=rid,
+                company_name=_pad(m.get("company_name", "COMPANY"), 16),
+                company_id_number=_pad(m.get("company_id_number", "1000000000"), 10),
+                company_entry_desc=_pad(m.get("company_entry_desc", "PAYMENT"), 10),
+                sec_code=m.get("sec_code", "PPD"),
+                service_class_code=m.get("service_class_code", "200"),
+                odfi_id=m.get("odfi_id", "odfi_001"),
+                discretionary_data=_pad(m.get("discretionary_data", "  "), 20),
+            )
+            for rid, m in zip(res["ids"], res["metadatas"])
+        ]
+
+    def add_company(self, company: CompanyRecord) -> str:
+        col = self._db.collection(Collections.COMPANIES)
+        cid = company.company_id or _uid("co_")
+        col.add(
+            ids=[cid],
+            documents=[company.company_name.strip()],
+            metadatas=[{
+                "company_name":        company.company_name,
+                "company_id_number":   company.company_id_number,
+                "company_entry_desc":  company.company_entry_desc,
+                "sec_code":            company.sec_code,
+                "service_class_code":  company.service_class_code,
+                "odfi_id":             company.odfi_id,
+                "discretionary_data":  company.discretionary_data,
+                "is_active":           "Y",
+                "created_at":          _now(),
+            }],
+        )
+        return cid
+
+    # ── Accounts ──────────────────────────────────────────────────────────────
+
+    def add_account(self, meta: dict) -> str:
+        col = self._db.collection(Collections.ACCOUNTS)
+        aid = _uid("acc_")
+        col.add(
+            ids=[aid],
+            documents=[meta.get("individual_name", "UNKNOWN")],
+            metadatas=[{**meta, "is_active": "Y", "created_at": _now()}],
+        )
+        return aid
+
+    # ── Transactions ──────────────────────────────────────────────────────────
+
+    def add_transaction(self, txn: TransactionRecord) -> str:
+        col = self._db.collection(Collections.TRANSACTIONS)
+        tid = txn.transaction_id or _uid("txn_")
+        doc = f"{txn.individual_name.strip()} {txn.transaction_code} {txn.amount_cents}"
+        col.add(
+            ids=[tid],
+            documents=[doc],
+            metadatas=[{
+                "account_id":          txn.account_id,
+                "company_id":          txn.company_id,
+                "transaction_code":    txn.transaction_code,
+                "amount_cents":        txn.amount_cents,
+                "effective_date":      txn.effective_date_str,
+                "individual_id":       txn.individual_id,
+                "individual_name":     txn.individual_name,
+                "rdfi_routing":        txn.rdfi_routing,
+                "rdfi_check_digit":    txn.rdfi_check_digit,
+                "account_number":      txn.account_number,
+                "account_type":        txn.account_type,
+                "discretionary_data":  txn.discretionary_data,
+                "addenda_info":        txn.addenda_info or "",
+                "company_name":        txn.company_name,
+                "company_id_number":   txn.company_id_number,
+                "company_entry_desc":  txn.company_entry_desc,
+                "sec_code":            txn.sec_code,
+                "service_class_code":  txn.service_class_code,
+                "company_disc_data":   txn.company_disc_data,
+                "odfi_routing":        txn.odfi_routing,
+                "immediate_dest":      txn.immediate_dest,
+                "immediate_origin":    txn.immediate_origin,
+                "dest_short_name":     txn.dest_short_name,
+                "origin_short_name":   txn.origin_short_name,
+                "status":              "PENDING",
+                "created_at":          _now(),
+                "processed_at":        "",
+                "file_id":             "",
+                "batch_number":        0,
+                "return_code":         "",
+            }],
+        )
+        return tid
 
     def get_pending_transactions(
         self,
-        company_id: Optional[int] = None,
+        company_id: Optional[str] = None,
         sec_code:   Optional[str] = None,
-        effective_date: Optional[str] = None,   # YYMMDD string
+        effective_date: Optional[str] = None,
         max_rows:   int = 5000,
     ) -> List[TransactionRecord]:
+        col = self._db.collection(Collections.TRANSACTIONS)
 
-        if self._mock:
-            return self._mock_transactions(max_rows, sec_code)
+        # Build ChromaDB `where` filter
+        filters = [{"status": {"$eq": "PENDING"}}]
+        if company_id:
+            filters.append({"company_id": {"$eq": str(company_id)}})
+        if sec_code:
+            filters.append({"sec_code": {"$eq": sec_code}})
+        if effective_date:
+            filters.append({"effective_date": {"$eq": effective_date}})
 
-        company_filter = "AND COMPANY_ID = :company_id" if company_id else ""
-        sec_filter     = "AND SEC_CODE = :sec_code"     if sec_code    else ""
-        date_filter    = "AND EFFECTIVE_DATE_STR = :eff_date" if effective_date else ""
+        where = {"$and": filters} if len(filters) > 1 else filters[0]
 
-        sql = self._sql(
-            _SQL_PENDING_TRANSACTIONS,
-            company_filter=company_filter,
-            sec_filter=sec_filter,
-            date_filter=date_filter,
+        try:
+            res = col.get(where=where, limit=max_rows)
+        except Exception as e:
+            log.warning("get_pending_transactions fallback: %s", e)
+            res = col.get(limit=max_rows)
+
+        if not res or not res.get("ids"):
+            log.info("No ChromaDB transactions found — using synthetic fallback")
+            return self._mock_transactions(min(max_rows, 20), sec_code)
+
+        return [self._meta_to_txn(rid, m)
+                for rid, m in zip(res["ids"], res["metadatas"])
+                if m.get("status") == "PENDING"]
+
+    def mark_batched(self, transaction_ids: List[str], file_id: str, batch_number: int):
+        col = self._db.collection(Collections.TRANSACTIONS)
+        for tid in transaction_ids:
+            try:
+                existing = col.get(ids=[tid])
+                if existing and existing.get("metadatas"):
+                    meta = existing["metadatas"][0]
+                    meta.update(status="BATCHED", file_id=file_id,
+                                batch_number=batch_number, processed_at=_now())
+                    col.update(ids=[tid], metadatas=[meta],
+                               documents=existing.get("documents", [tid]))
+            except Exception as e:
+                log.warning("mark_batched %s: %s", tid, e)
+
+    # ── File log ──────────────────────────────────────────────────────────────
+
+    def log_file(
+        self, file_name: str, modifier: str, odfi_id: str,
+        batch_count: int, entry_count: int, block_count: int,
+        total_debit: int, total_credit: int,
+        content: str, sec_codes: str = "",
+    ) -> str:
+        col = self._db.collection(Collections.FILE_LOG)
+        fid = f"file_{datetime.now().strftime('%Y%m%d%H%M%S')}_{modifier}"
+        col.add(
+            ids=[fid],
+            documents=[content],          # full NACHA text — queryable by similarity
+            metadatas=[{
+                "file_name":           file_name,
+                "file_id_modifier":    modifier,
+                "odfi_id":             odfi_id,
+                "batch_count":         batch_count,
+                "entry_count":         entry_count,
+                "block_count":         block_count,
+                "total_debit_cents":   total_debit,
+                "total_credit_cents":  total_credit,
+                "generation_method":   "CHROMA",
+                "is_valid":            "Y",
+                "validation_errors":   0,
+                "sec_codes":           sec_codes,
+                "created_at":          _now(),
+                "sent_at":             "",
+            }],
         )
+        log.info("Logged file %s (%d entries)", fid, entry_count)
+        return fid
 
-        params: Dict[str, Any] = {"max_rows": max_rows}
-        if company_id:     params["company_id"] = company_id
-        if sec_code:       params["sec_code"]   = sec_code
-        if effective_date: params["eff_date"]   = effective_date
+    def get_file_log(self, limit: int = 50) -> List[Dict]:
+        col = self._db.collection(Collections.FILE_LOG)
+        res = col.get(limit=limit)
+        if not res or not res.get("ids"):
+            return []
+        return [
+            {"file_id": rid, **m}
+            for rid, m in zip(res["ids"], res["metadatas"])
+        ]
 
-        try:
-            rows = execute_query(sql, params)
-            return [self._row_to_txn(r) for r in rows]
-        except Exception as e:
-            log.error("get_pending_transactions failed: %s — using mock data", e)
-            return self._mock_transactions(max_rows, sec_code)
+    # ── Validation log ────────────────────────────────────────────────────────
 
-    def get_companies(self, sec_code: Optional[str] = None) -> List[CompanyRecord]:
-        if self._mock:
-            return self._mock_companies(sec_code)
-
-        sec_filter = "AND c.SEC_CODE = :sec_code" if sec_code else ""
-        sql = self._sql(_SQL_COMPANIES, sec_filter=sec_filter)
-        params = {"sec_code": sec_code} if sec_code else {}
-
-        try:
-            rows = execute_query(sql, params)
-            return [CompanyRecord(**{k: r[k] for k in CompanyRecord.__dataclass_fields__}) for r in rows]
-        except Exception as e:
-            log.error("get_companies failed: %s", e)
-            return self._mock_companies(sec_code)
-
-    def log_file(self, file_name: str, modifier: str, odfi_id: int,
-                 batch_count: int, entry_count: int, block_count: int,
-                 total_debit: int, total_credit: int,
-                 content: str) -> Optional[int]:
-        """Write generated file to audit log, return FILE_ID."""
-        if self._mock:
-            log.info("MOCK log_file: %s (%d entries)", file_name, entry_count)
-            return None
-
-        sql = self._sql(_SQL_LOG_FILE)
-        params = dict(
-            file_name=file_name, modifier=modifier, odfi_id=odfi_id,
-            batch_count=batch_count, entry_count=entry_count, block_count=block_count,
-            debit=total_debit, credit=total_credit, content=content,
-            file_id=None,
+    def log_validation(
+        self, file_name: str, file_type: str, is_valid: bool,
+        error_count: int, warning_count: int,
+        report: dict, file_id: str = "",
+    ) -> str:
+        col = self._db.collection(Collections.VALIDATION_LOG)
+        vid = _uid("val_")
+        summary = (
+            f"{'VALID' if is_valid else 'INVALID'} {file_type} file: "
+            f"{file_name} — {error_count} errors, {warning_count} warnings"
         )
-        try:
-            with self.pool.connection() as conn:
-                cur = conn.cursor()
-                out = cur.var(int)
-                params["file_id"] = out
-                cur.execute(sql, params)
-                conn.commit()
-                return out.getvalue()
-        except Exception as e:
-            log.error("log_file failed: %s", e)
-            return None
-
-    def save_corpus_entry(self, content: str, sec_code: str, scc: str,
-                          batches: int, entries: int,
-                          split: str = "TRAIN",
-                          file_log_id: Optional[int] = None):
-        """Persist a generated ACH file to the training corpus table."""
-        if self._mock:
-            return
-
-        sql = self._sql(_SQL_SAVE_CORPUS)
-        params = dict(
-            file_log_id=file_log_id, content=content, sec_code=sec_code,
-            scc=scc, batches=batches, entries=entries, split=split,
+        col.add(
+            ids=[vid],
+            documents=[summary],
+            metadatas=[{
+                "file_id":       file_id,
+                "file_name":     file_name,
+                "file_type":     file_type,
+                "is_valid":      "Y" if is_valid else "N",
+                "error_count":   error_count,
+                "warning_count": warning_count,
+                "report_json":   json.dumps(report)[:2000],  # truncate for metadata limit
+                "created_at":    _now(),
+            }],
         )
-        try:
-            with self.pool.connection() as conn:
-                cur = conn.cursor()
-                cur.execute(sql, params)
-                conn.commit()
-        except Exception as e:
-            log.warning("save_corpus_entry failed: %s", e)
+        return vid
+
+    # ── Training corpus ───────────────────────────────────────────────────────
+
+    def save_corpus_entry(
+        self, content: str, sec_code: str, scc: str,
+        batches: int, entries: int, split: str = "TRAIN",
+        file_log_id: str = "", source: str = "CHROMA",
+    ) -> str:
+        col = self._db.collection(Collections.TRAINING_CORPUS)
+        cid = _uid("corpus_")
+        col.add(
+            ids=[cid],
+            documents=[content],           # full ACH text — embedded for similarity search
+            metadatas=[{
+                "file_log_id":          file_log_id,
+                "sec_code":             sec_code,
+                "service_class_code":   scc,
+                "batch_count":          batches,
+                "entry_count":          entries,
+                "split_type":           split,
+                "is_used_for_training": "N",
+                "source":               source,
+                "created_at":           _now(),
+            }],
+        )
+        return cid
 
     def fetch_corpus(
         self,
         split: str = "TRAIN",
         sec_code: Optional[str] = None,
         limit: int = 500,
+        similar_to: Optional[str] = None,
     ) -> List[str]:
-        """Retrieve stored training files from the corpus table."""
-        if self._mock:
-            return []
-
-        sec_filter = "AND SEC_CODE = :sec_code" if sec_code else ""
-        sql = self._sql(_SQL_FETCH_CORPUS, sec_filter=sec_filter)
-        params: Dict[str, Any] = {"split": split, "limit": limit}
+        """
+        Retrieve training files from the corpus collection.
+        If `similar_to` is provided, uses ChromaDB vector similarity search
+        to find structurally similar ACH files — powerful for curriculum learning.
+        """
+        col = self._db.collection(Collections.TRAINING_CORPUS)
+        where = {"split_type": {"$eq": split}}
         if sec_code:
-            params["sec_code"] = sec_code
+            where = {"$and": [{"split_type": {"$eq": split}},
+                               {"sec_code":   {"$eq": sec_code}}]}
 
         try:
-            rows = execute_query(sql, params)
-            results = []
-            for r in rows:
-                content = r.get("file_content")
-                if hasattr(content, "read"):
-                    content = content.read()
-                if content:
-                    results.append(content)
-            return results
+            if similar_to:
+                # Semantic similarity search — find ACH files similar to a seed
+                res = col.query(
+                    query_texts=[similar_to],
+                    n_results=min(limit, col.count() or 1),
+                    where=where,
+                )
+                docs = res.get("documents", [[]])[0]
+            else:
+                res = col.get(where=where, limit=limit)
+                docs = res.get("documents", [])
+
+            return [d for d in docs if d]
+
         except Exception as e:
-            log.error("fetch_corpus failed: %s", e)
+            log.warning("fetch_corpus failed: %s", e)
             return []
 
-    # ── Row → dataclass mapping ───────────────────────────────────────────────
+    def corpus_stats(self) -> Dict[str, Any]:
+        col = self._db.collection(Collections.TRAINING_CORPUS)
+        total = col.count()
+        if total == 0:
+            return {"total": 0}
+
+        stats: Dict[str, int] = {"total": total}
+        for split in ("TRAIN", "VAL", "TEST"):
+            try:
+                res = col.get(where={"split_type": {"$eq": split}}, limit=10000)
+                stats[split.lower()] = len(res.get("ids", []))
+            except Exception:
+                stats[split.lower()] = 0
+        return stats
+
+    # ── Meta → domain object ──────────────────────────────────────────────────
 
     @staticmethod
-    def _row_to_txn(r: dict) -> TransactionRecord:
-        def s(key, default="", maxlen=None):
-            v = str(r.get(key) or default).strip()
-            return v[:maxlen] if maxlen else v
+    def _meta_to_txn(rid: str, m: dict) -> TransactionRecord:
+        def s(k, default="", n=None):
+            v = str(m.get(k) or default).strip()
+            return v[:n] if n else v
 
         return TransactionRecord(
-            transaction_id    = int(r.get("transaction_id", 0)),
-            account_id        = int(r.get("account_id", 0)),
-            company_id        = int(r.get("company_id", 0)),
-            transaction_code  = s("transaction_code", "22", 2),
-            amount_cents      = int(r.get("amount_cents", 0)),
-            effective_date_str= s("effective_date_str", datetime.now().strftime("%y%m%d"), 6),
-            individual_id     = s("individual_id", "          ", 15).ljust(15)[:15],
-            individual_name   = s("individual_name", "UNKNOWN", 22).ljust(22)[:22],
-            rdfi_routing      = s("rdfi_routing", "02100002", 8).ljust(8)[:8],
-            rdfi_check_digit  = s("rdfi_check_digit", "1", 1),
-            account_number    = s("account_number", "000000000", 17).ljust(17)[:17],
-            account_type      = s("account_type", "C", 1),
-            discretionary_data= s("discretionary_data", "  ", 2).ljust(2)[:2],
-            addenda_info      = s("addenda_info") or None,
-            company_name      = s("company_name", "COMPANY", 16).ljust(16)[:16],
-            company_id_number = s("company_id_number", "1000000000", 10).ljust(10)[:10],
-            company_entry_desc= s("company_entry_desc", "PAYMENT", 10).ljust(10)[:10],
-            sec_code          = s("sec_code", "PPD", 3),
-            service_class_code= s("service_class_code", "200", 3),
-            company_disc_data = s("company_disc_data", "                    ", 20).ljust(20)[:20],
-            odfi_routing      = s("odfi_routing", "021000021", 9),
-            immediate_dest    = s("immediate_dest", " 021000021", 10).ljust(10)[:10],
-            immediate_origin  = s("immediate_origin", "021000021 ", 10).ljust(10)[:10],
-            dest_short_name   = s("dest_short_name", "JPMORGAN CHASE NA  ", 23).ljust(23)[:23],
-            origin_short_name = s("origin_short_name", "FINSLM PAYMENTS    ", 23).ljust(23)[:23],
+            transaction_id     = rid,
+            account_id         = s("account_id"),
+            company_id         = s("company_id"),
+            transaction_code   = s("transaction_code", "22", 2),
+            amount_cents       = _safe_int(m.get("amount_cents")),
+            effective_date_str = s("effective_date", datetime.now().strftime("%y%m%d"), 6),
+            individual_id      = _pad(s("individual_id"), 15),
+            individual_name    = _pad(s("individual_name", "UNKNOWN"), 22),
+            rdfi_routing       = _pad(s("rdfi_routing", "02100002"), 8),
+            rdfi_check_digit   = s("rdfi_check_digit", "1", 1),
+            account_number     = _pad(s("account_number", "000000000"), 17),
+            account_type       = s("account_type", "C", 1),
+            discretionary_data = _pad(s("discretionary_data", "  "), 2),
+            addenda_info       = s("addenda_info") or None,
+            company_name       = _pad(s("company_name", "COMPANY"), 16),
+            company_id_number  = _pad(s("company_id_number", "1000000000"), 10),
+            company_entry_desc = _pad(s("company_entry_desc", "PAYMENT"), 10),
+            sec_code           = s("sec_code", "PPD", 3),
+            service_class_code = s("service_class_code", "200", 3),
+            company_disc_data  = _pad(s("company_disc_data"), 20),
+            odfi_routing       = s("odfi_routing", "021000021", 9),
+            immediate_dest     = _pad(s("immediate_dest", " 021000021"), 10),
+            immediate_origin   = _pad(s("immediate_origin", "021000021 "), 10),
+            dest_short_name    = _pad(s("dest_short_name", "JPMORGAN CHASE NA  "), 23),
+            origin_short_name  = _pad(s("origin_short_name", "FINSLM PAYMENTS    "), 23),
+            status             = s("status", "PENDING"),
         )
 
-    # ── Mock data generators (used when DB unavailable) ───────────────────────
+    # ── Synthetic fallbacks (when corpus is empty) ────────────────────────────
 
     def _mock_transactions(self, n: int, sec_code: Optional[str]) -> List[TransactionRecord]:
-        import random
-        from data.generator import ACHGenerator, VALID_ROUTING_NUMBERS, INDIVIDUAL_NAMES, COMPANY_NAMES
-        rng = VALID_ROUTING_NUMBERS
-        sec = sec_code or random.choice(["PPD", "CCD", "WEB", "TEL"])
-        scc = "200"
-        co_name = random.choice(COMPANY_NAMES)
-        co_id   = f"1{random.randint(10**8, 10**9-1)}"
-        eff     = (datetime.now() + timedelta(days=2)).strftime("%y%m%d")
+        from data.generator import (
+            VALID_ROUTING_NUMBERS, INDIVIDUAL_NAMES, COMPANY_NAMES
+        )
+        sec   = sec_code or random.choice(["PPD", "CCD", "WEB", "TEL"])
+        co    = random.choice(COMPANY_NAMES)
+        co_id = f"1{random.randint(10**8, 10**9 - 1)}"
+        eff   = (datetime.now() + timedelta(days=2)).strftime("%y%m%d")
+        odfi  = self._default_odfi()
 
-        txns = []
-        for i in range(min(n, 20)):
-            routing = random.choice(rng)
-            tc = random.choice(["22", "27", "32", "37"])
-            amt = random.randint(100, 500000)
-            name = random.choice(INDIVIDUAL_NAMES)
-            txns.append(TransactionRecord(
-                transaction_id   = i + 1,
-                account_id       = i + 1,
-                company_id       = 1,
-                transaction_code = tc,
-                amount_cents     = amt,
+        return [
+            TransactionRecord(
+                transaction_id     = f"mock_{i:05d}",
+                account_id         = f"acc_mock_{i}",
+                company_id         = "co_mock_001",
+                transaction_code   = random.choice(["22", "27", "32", "37"]),
+                amount_cents       = random.randint(100, 500_000),
                 effective_date_str = eff,
-                individual_id    = f"ID{i:013d}",
-                individual_name  = name[:22].ljust(22),
-                rdfi_routing     = routing[:8],
-                rdfi_check_digit = routing[8],
-                account_number   = f"{random.randint(10**6,10**9-1)}".ljust(17)[:17],
-                account_type     = "C",
+                individual_id      = _pad(f"ID{i:013d}", 15),
+                individual_name    = _pad(random.choice(INDIVIDUAL_NAMES), 22),
+                rdfi_routing       = random.choice(VALID_ROUTING_NUMBERS)[:8],
+                rdfi_check_digit   = random.choice(VALID_ROUTING_NUMBERS)[8],
+                account_number     = _pad(str(random.randint(10**6, 10**9)), 17),
+                account_type       = "C",
                 discretionary_data = "  ",
-                addenda_info     = None,
-                company_name     = co_name[:16].ljust(16),
-                company_id_number= co_id[:10].ljust(10),
+                addenda_info       = None,
+                company_name       = _pad(co, 16),
+                company_id_number  = _pad(co_id, 10),
                 company_entry_desc = "PAYROLL   ",
-                sec_code         = sec,
-                service_class_code = scc,
-                company_disc_data= "                    ",
-                odfi_routing     = "021000021",
-                immediate_dest   = " 021000021",
-                immediate_origin = "021000021 ",
-                dest_short_name  = "JPMORGAN CHASE NA  ",
-                origin_short_name= "FINSLM PAYMENTS    ",
-            ))
-        return txns
+                sec_code           = sec,
+                service_class_code = "200",
+                company_disc_data  = _pad("", 20),
+                odfi_routing       = odfi.routing_number,
+                immediate_dest     = odfi.immediate_dest,
+                immediate_origin   = odfi.immediate_origin,
+                dest_short_name    = odfi.dest_short_name,
+                origin_short_name  = odfi.origin_short_name,
+            )
+            for i in range(n)
+        ]
 
     def _mock_companies(self, sec_code: Optional[str]) -> List[CompanyRecord]:
         from data.generator import COMPANY_NAMES
-        import random
-        names = COMPANY_NAMES[:5]
         secs = [sec_code or s for s in ["PPD", "CCD", "WEB", "TEL", "PPD"]]
         return [
             CompanyRecord(
-                company_id        = i + 1,
-                company_name      = n[:16],
-                company_id_number = f"1{i:09d}",
-                company_entry_desc= "PAYROLL   ",
-                sec_code          = secs[i % len(secs)],
-                service_class_code= "200",
-                discretionary_data= "  ",
+                company_id         = f"co_mock_{i + 1:03d}",
+                company_name       = _pad(n, 16),
+                company_id_number  = _pad(f"1{i:09d}", 10),
+                company_entry_desc = "PAYROLL   ",
+                sec_code           = secs[i % len(secs)],
+                service_class_code = "200",
+                odfi_id            = "odfi_001",
             )
-            for i, n in enumerate(names)
+            for i, n in enumerate(COMPANY_NAMES[:5])
         ]

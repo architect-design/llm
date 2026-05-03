@@ -1,19 +1,20 @@
 # HELP.MD - Complete Code Documentation
 
 ## Overview
-This project is a **Financial Structured Language Model (SLM)** web application designed to generate, validate, and train AI models on ACH (NACHA) and VCF (VisaNet Custom File) financial file formats. It supports both synthetic and Oracle database-backed data, with a web UI for user interaction.
+This project is a **Financial Structured Language Model (SLM)** web application designed to generate, validate, and train AI models on ACH (NACHA) and VCF (VisaNet Custom File) financial file formats. It supports both synthetic and **ChromaDB**-backed data, with a web UI for user interaction.
 
 **Key Technologies:**
 - Flask (web framework)
-- PyTorch (deep learning)
+- PyTorch (deep learning, optional)
 - NumPy (scientific computing)
-- Oracle Database (optional, with fallback to mock data)
+- **ChromaDB** (vector database with local persistence - REPLACES Oracle)
+- Custom Embedding Functions (offline n-gram hashing)
 
 ---
 
 ## Main Application
 
-### `app.py` (486 lines)
+### `app.py` (541 lines)
 The Flask web server providing REST APIs and web UI endpoints.
 
 #### Configuration
@@ -342,6 +343,108 @@ def __init__(self, order: int = 4):
 
 ---
 
+## Database Access (ChromaDB)
+
+### `db/chroma_client.py` (243 lines)
+Thread-safe ChromaDB client managing persistent local vector database.
+
+**Purpose:**
+- Replaces Oracle Database as the primary data store
+- All data stored locally in `db/chromadb_store/` folder
+- Zero external dependencies for database connectivity
+
+**Collections (Like Oracle Tables):**
+```python
+ach_odfi_config      # ODFI bank routing configuration
+ach_companies        # Originator company master data
+ach_accounts         # Receiver (RDFI) account details
+ach_transactions     # Pending payment transactions
+ach_file_log         # Generated ACH file audit trail
+ach_validation_log   # Validation run results
+ach_training_corpus  # SLM training examples (ACH file content)
+```
+
+**Key Features:**
+- **FinancialHashEmbedding**: Lightweight offline embedding using character n-gram hashing
+  - No model download required
+  - Dimension: 256-dimensional vectors
+  - Works entirely offline
+- **Thread-safe singleton pattern**: Reuses single client instance
+- **Automatic collection creation**: Creates collections on first use
+
+**Key Methods:**
+
+- `@classmethod get_instance() -> ChromaDBClient`
+  - Returns singleton client instance
+  - Creates if needed
+
+- `add_documents(collection_name, ids, documents, metadatas, embedding_texts=None)`
+  - Adds records to a collection
+  - `embedding_texts`: Text to embed (defaults to documents)
+
+- `query(collection_name, query_texts, n_results=10, where=None)`
+  - Searches collection with semantic similarity
+  - Optional metadata filters via `where` dict
+
+- `get(collection_name, ids=None, where=None, limit=None) -> List[Dict]`
+  - Retrieves records by ID or metadata filter
+  - Returns full record dicts with metadata
+
+- `update(collection_name, ids, documents, metadatas, embedding_texts=None)`
+  - Updates existing records
+
+- `delete(collection_name, ids=None, where=None)`
+  - Deletes records by ID or metadata filter
+
+- `reset_collection(collection_name) -> bool`
+  - Clears all records from a collection
+  - Useful for resetting state
+
+**Example Usage:**
+```python
+client = ChromaDBClient.get_instance()
+
+# Add a transaction
+client.add_documents(
+    "ach_transactions",
+    ids=["txn_123"],
+    documents=["TRANSACTION_DETAILS"],
+    metadatas=[{
+        "company_id": "ACME",
+        "amount": 10000,
+        "status": "PENDING"
+    }]
+)
+
+# Query by metadata
+results = client.get(
+    "ach_transactions",
+    where={"company_id": "ACME", "status": "PENDING"},
+    limit=100
+)
+
+# Semantic search
+similar = client.query(
+    "ach_training_corpus",
+    query_texts=["PPD payroll direct deposit"],
+    n_results=5
+)
+```
+
+---
+
+### `db/chroma_schema.py`
+Schema definitions and initialization scripts for ChromaDB collections.
+
+**Contains:**
+- Collection metadata schemas
+- Index definitions
+- Data validation rules
+- Sample seed data for each collection
+- Initialization function to populate demo data
+
+---
+
 ## Data Generation
 
 ### `data/generator.py` (416 lines)
@@ -444,23 +547,26 @@ file_content = gen.generate_file(num_transactions=50)
 
 ---
 
-### `data/oracle_ach_generator.py` (382 lines)
-Generates ACH files from real Oracle database transactions.
+### `data/chroma_ach_generator.py` (408 lines)
+Generates ACH NACHA files from ChromaDB transaction data (replaces `oracle_ach_generator.py`).
 
-#### Class: `OracleACHGenerator`
-Reads pending transactions from Oracle and builds NACHA files.
+**Purpose:**
+- Reads pending transactions from ChromaDB `ach_transactions` collection
+- Assembles NACHA-compliant 94-character-per-record files
+- Falls back to synthetic generation if ChromaDB is empty
+- Logs generated files to ChromaDB for audit trail
 
 **Constructor:**
 ```python
-def __init__(self, config: Optional[OracleConfig] = None):
-    self.repo = ACHRepository(config)
-    self.config = config or OracleConfig()
+def __init__(self, store_path: Optional[str] = None):
+    # store_path: Optional custom path to chromadb_store/
+    # Defaults to db/chromadb_store/
 ```
 
 **Key Methods:**
 
 - `generate(company_id=None, sec_code=None, effective_date=None, max_transactions=5000, save_audit=True, save_corpus=True) -> Dict`
-  - Main entry point: generates ACH from Oracle
+  - Main entry point: generates ACH from ChromaDB
   - Returns dict with:
     ```python
     {
@@ -470,142 +576,102 @@ def __init__(self, config: Optional[OracleConfig] = None):
         "entry_count": int,          # Total transactions
         "total_debit": int,          # Debit sum (cents)
         "total_credit": int,         # Credit sum (cents)
-        "source": str,               # "oracle" or "mock"
+        "source": str,               # "chromadb" or "synthetic"
         "transactions": List[int],   # Transaction IDs included
-        "file_id": Optional[int],    # Oracle audit log ID
+        "file_id": Optional[str],    # ChromaDB audit log ID
     }
     ```
-  - Falls back to synthetic data if Oracle unavailable
-  - Audit logs generated file to `ACH_FILE_LOG` table
-  - Saves to `ACH_TRAINING_CORPUS` if `save_corpus=True`
+  - Falls back to synthetic data if ChromaDB corpus empty
+  - Audit logs to `ach_file_log` collection
+  - Saves to `ach_training_corpus` if `save_corpus=True`
 
 - `generate_training_batch(n_files=200, sec_code=None, callback=None) -> List[str]`
   - Generates multiple files for SLM training
   - Each file created by calling `generate()` internally
-  - Useful for Oracle-aware training
+  - Useful for training-aware data generation
 
 - `fetch_corpus_files(split="TRAIN", limit=500) -> List[str]`
-  - Retrieves previously generated files from corpus table
+  - Retrieves previously generated files from ChromaDB corpus
   - `split`: "TRAIN" or "VAL" (validation)
 
-**Internal NACHA Builders (Similar to `ACHGenerator`, but from real data):**
+**Internal NACHA Builders (Similar Structure to ACHGenerator):**
 - `_build_records()`: Assembles NACHA records from transaction objects
-- `_file_header()`, `_batch_header()`, `_entry_detail()`, etc.
+- `_file_header()`, `_batch_header()`, `_entry_detail()`, `_batch_control()`, `_file_control()`
 
-**Key Differences from `ACHGenerator`:**
-- Real data: routing numbers, company IDs, account numbers from DB
-- Transaction grouping: batches by (company_id, sec_code, service_class_code)
-- Addenda support: includes addenda records if present in transaction data
-- Audit trail: writes to database tables
-
-**Example Usage:**
-```python
-gen = OracleACHGenerator(config)
-result = gen.generate(
-    company_id=123,
-    sec_code="PPD",
-    max_transactions=100,
-    save_audit=True,
-    save_corpus=True
-)
-print(f"Generated {result['entry_count']} entries in {result['content']}")
-```
+**Key Differences from `oracle_ach_generator.py`:**
+- Data source: ChromaDB collections instead of SQL queries
+- Repository calls use ChromaDB `get`/`where` filters instead of SQL WHERE clauses
+- Generated files stored back into ChromaDB collections
+- Native support for offline operation
+- Embeddings enable semantic search of transaction corpus
 
 ---
 
-## Database Access
+### `data/chroma_trainer.py` (263 lines)
+ChromaDB-aware training pipeline that blends corpus, live, and synthetic data (replaces `oracle_trainer.py`).
 
-### `db/oracle_connector.py` (319 lines)
-Manages Oracle database connections with graceful degradation to mock mode.
+**Data Priority (Highest Quality First):**
+1. **ach_training_corpus** - High-quality ACH files previously saved in ChromaDB
+2. **ChromaACHGenerator** - Fresh files built from ChromaDB transactions (real data patterns)
+3. **ACHGenerator** - Purely synthetic files (diversity + fallback)
 
-#### Class: `OracleConfig` (Dataclass)
-Holds all connection parameters. Values read from environment variables.
-
-**Environment Variables:**
-```
-ORACLE_HOST=localhost               # Oracle server hostname
-ORACLE_PORT=1521                    # Oracle port
-ORACLE_SERVICE=ORCL                 # Service name
-ORACLE_USER=finslm                  # Username
-ORACLE_PASSWORD=                    # Password (sensitive!)
-ORACLE_WALLET_DIR=                  # mTLS wallet path (optional)
-ORACLE_WALLET_PWD=                  # Wallet password
-ORACLE_POOL_MIN=2                   # Min connections in pool
-ORACLE_POOL_MAX=10                  # Max connections in pool
-ORACLE_POOL_INC=1                   # Connection increment
-ORACLE_TIMEOUT_S=30                 # Connection timeout (seconds)
-ORACLE_SCHEMA=FINSLM                # Default schema name
-ORACLE_MOCK=false                   # Force mock mode if "true"
-```
-
-**Key Property:**
+**Constructor:**
 ```python
-@property
-def dsn(self) -> str:
-    return f"{self.host}:{self.port}/{self.service}"  # Connection string
+def __init__(self, store_path: Optional[str] = None, train_config: dict = None):
+    # store_path: Path to chromadb_store/ (defaults to db/chromadb_store/)
+    # train_config: Override DEFAULT_CONFIG
 ```
 
-#### Class: `OracleConnectionPool` (Singleton)
-Thread-safe connection pooling with automatic mock fallback.
-
-**Features:**
-- **Automatic driver detection:** oracledb (recommended) → cx_Oracle → mock
-- **Connection pooling:** Reuses connections to reduce overhead
-- **Mock mode fallback:** If driver missing or DB unreachable, uses fake in-memory mode
-- **Thread-safe:** Uses locks for singleton pattern
+**Default Configuration:**
+```python
+DEFAULT_CONFIG = {
+    "model_config":       "small",
+    "n_corpus_files":     300,   # from ChromaDB corpus collection
+    "n_chroma_files":     100,   # generated fresh from ChromaDB transactions
+    "n_synthetic_files":  100,   # always include some synthetic for diversity
+    "n_val_files":        50,
+    "corpus_weight":      0.6,   # fraction from ChromaDB corpus
+    "block_size":         512,
+    "batch_size":         4,
+    "max_epochs":         10,
+    "learning_rate":      3e-4,
+    "weight_decay":       0.1,
+    "grad_clip":          1.0,
+    "warmup_steps":       50,
+    "save_dir":           "trained_models/",
+}
+```
 
 **Key Methods:**
 
-- `@classmethod get_instance(config: Optional[OracleConfig] = None) -> OracleConnectionPool`
-  - Returns singleton pool instance
-  - Creates if needed with given config
+- `collect_training_data(callback=None) -> dict`
+  - Gathers training data from all three sources
+  - Returns: `{"corpus": n, "chroma_live": n, "synthetic": n}`
+  - Callback for progress reporting
 
-- `@classmethod reset()`
-  - Closes current pool and clears singleton
-  - Useful for switching configs
+- `train(callback=None) -> Dict`
+  - Main training loop
+  - Auto-selects Transformer (PyTorch) or Bigram (NumPy) backend
+  - Returns: `{"model_path", "backend", "best_val_loss", "train_losses"}`
 
-- `@contextmanager connection()`
-  - Yields a database connection (real or mock)
-  - Usage: `with pool.connection() as conn: cur = conn.cursor()`
+**Example Usage:**
+```python
+from data.chroma_trainer import ChromaAwareTrainer
 
-- `health() -> dict`
-  - Returns connection pool health metrics
-  - Includes: driver, mode, connected status, pool counts
+trainer = ChromaAwareTrainer(train_config={
+    "n_corpus_files": 200,
+    "max_epochs": 5,
+})
 
-- `test_connection() -> (bool, str)`
-  - Ping the database with simple "SELECT 1"
-  - Returns: (success, message)
+def progress_callback(msg, pct):
+    print(f"[{pct}%] {msg}")
 
-- `@property is_mock() -> bool`
-  - True if running in mock mode (DB unavailable)
-
-**Internal Methods:**
-- `_init_pool()`: Creates oracledb/cx_Oracle pool or switches to mock
-
-#### Helper Classes: `MockCursor`, `MockConnection`
-Fake cursor/connection for when Oracle is unavailable.
-
-- `execute(sql, params)`: Accepts but doesn't execute
-- `fetchall()`, `fetchone()`: Returns empty results
-- Safe fallback: code continues to work without DB
-
-#### Module-Level Functions
-
-**`get_pool(config: Optional[OracleConfig] = None) -> OracleConnectionPool`**
-- Convenience function to get singleton pool
-
-**`execute_query(sql: str, params=None, config=None, fetchall=True) -> List[Dict]`**
-- Executes SELECT and returns list of dicts
-- Handles column → dict mapping automatically
-- Transparent mock/live connection
-
-**`execute_dml(sql: str, params=None, config=None) -> int`**
-- Executes INSERT/UPDATE/DELETE and auto-commits
-- Returns row count
+result = trainer.train(callback=progress_callback)
+print(f"Model: {result['model_path']}")
+print(f"Val Loss: {result['best_val_loss']:.4f}")
+```
 
 ---
-
-### `db/ach_repository.py` (457 lines)
 Repository pattern for all ACH-related database queries.
 
 #### Domain Objects (Dataclasses)
@@ -1358,7 +1424,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### Oracle Connection Fails
-**Problem:** "Connection failed: ORA-12514: TNS:listener does not recognize..."  
+**Problem:** "Connection failed: ORA-12514: TNS:listener does not recognize..."
 **Solution:** App automatically falls back to mock mode. Provides warning but continues:
 ```python
 # In app output:
@@ -1468,10 +1534,12 @@ slm_ach_vcf-claude/
 ### Learning Path
 1. Start with `data/generator.py` to understand file structures
 2. Use `validators/ach_validator.py` to learn validation rules
-3. Explore `trainer.py` to understand training pipeline
-4. Try `app.py` endpoints via curl or Postman
-5. Read model classes `transformer.py` and `bigram_fallback.py`
-6. Integrate with Oracle via `db/oracle_connector.py`
+3. Explore `db/chroma_client.py` to understand ChromaDB integration
+4. Read `data/chroma_ach_generator.py` for transaction-to-file generation
+5. Try `data/chroma_trainer.py` to understand training with real data
+6. Explore `trainer.py` to understand basic (synthetic-only) training pipeline
+7. Try `app.py` endpoints via curl or Postman
+8. Read model classes `transformer.py` and `bigram_fallback.py`
 
 ---
 
