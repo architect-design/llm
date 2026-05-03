@@ -513,7 +513,7 @@ Generates VISA VCF (VisaNet Custom File) format.
 3: Amount (decimal)
 4: Currency Code (ISO 4217, e.g., "840"=USD)
 5: Transaction DateTime
-6: Merchant Category Code (4-digit MCC)
+6: Merchant Category Code (4 digits)
 7: POS Entry Mode
 8: Response Code
 9: Authorization Code
@@ -1434,6 +1434,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 - **Flask**: Web framework
 - **Werkzeug**: File upload handling
 - **NumPy**: Scientific computing (fallback model)
+- **ChromaDB**: Vector database for local data storage
 
 ### Optional
 - **PyTorch**: Transformer model (recommended)
@@ -1445,28 +1446,29 @@ See `requirements.txt` for versions.
 ## File Structure Summary
 ```
 slm_ach_vcf-claude/
-├── app.py                      # Flask web server (486 lines)
+├── app.py                      # Flask web server (541 lines)
 ├── trainer.py                  # Training pipeline (281 lines)
 ├── model/
 │   ├── transformer.py          # Transformer model (208 lines)
-│   ├── tokenizer.py            # Tokenizer (114 lines)
-│   └── bigram_fallback.py      # Bigram fallback (108 lines)
+│   ├── tokenizer.py            # Character-level tokenizer (114 lines)
+│   └── bigram_fallback.py      # NumPy-based n-gram model (108 lines)
 ├── data/
-│   ├── generator.py            # Synthetic data (416 lines)
-│   └── oracle_ach_generator.py # Oracle-backed generation (382 lines)
+│   ├── generator.py            # Synthetic ACH/VCF data generation (416 lines)
+│   ├── chroma_ach_generator.py # ChromaDB-backed ACH generation (408 lines)
+│   └── chroma_trainer.py       # ChromaDB-aware training pipeline (263 lines)
 ├── db/
-│   ├── oracle_connector.py     # DB connection pooling (319 lines)
-│   └── ach_repository.py       # Data access layer (457 lines)
+│   ├── chroma_client.py        # ChromaDB client and operations (243 lines)
+│   └── chroma_schema.py        # ChromaDB collection schemas
 ├── validators/
-│   ├── ach_validator.py        # ACH validation (427 lines)
-│   └── vcf_validator.py        # VCF validation (453 lines)
+│   ├── ach_validator.py        # ACH NACHA file validation (427 lines)
+│   └── vcf_validator.py        # VCF file validation (453 lines)
 ├── templates/
-│   └── index.html              # Web UI
-├── trained_models/             # Saved models (auto-created)
-├── uploads/                    # Temp file storage (auto-created)
-├── HELP.MD                     # This file
-├── README.md                   # Setup guide
-└── requirements.txt            # Pip dependencies
+│   └── index.html              # Web UI template
+├── trained_models/             # Saved model checkpoints (auto-created)
+├── uploads/                    # Temporary file uploads (auto-created)
+├── HELP.MD                     # This documentation file
+├── README.md                   # Project setup and overview
+└── requirements.txt            # Python dependencies
 ```
 
 ---
