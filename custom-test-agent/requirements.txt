@@ -1,0 +1,10 @@
+torch
+transformers
+peft
+accelerate
+bitsandbytes
+sqlalchemy
+psycopg2-binary
+tqdm
+datasets
+flask
